@@ -260,6 +260,19 @@ rpt.plot_result(result, benchmark=bench, path="equity.png")   # equity + drawdow
 md = rpt.markdown_report(result, name="MA crossover", benchmark=bench)
 ```
 
+**Unified HTML output (preferred for 复盘/分析报告).** Author the report as markdown,
+then render it to one clean, self-contained, good-looking HTML page with
+`scripts.html_report` (consistent styling: accent headers, striped tables, red 🔴
+callouts, auto green/red coloring of +x%/-x%, and table-normalization so a sloppily
+authored table still renders). Needs `pip install markdown --break-system-packages`.
+
+```python
+from scripts import html_report as H
+H.save_html(md_text, "trading/reports/美股复盘_2026-06-09.html",
+            title="美股盘后复盘", subtitle="2026-06-09 · alpha-forge")
+H.md_file_to_html("trading/reports/x.md")     # or convert an existing .md in place
+```
+
 Or do steps 1–5 from the command line:
 
 ```bash
@@ -282,7 +295,7 @@ trade before risking capital.
 
 The free loaders need their libraries:
 ```bash
-pip install yfinance akshare pykrx pandas numpy matplotlib pyarrow --break-system-packages
+pip install yfinance akshare pykrx pandas numpy matplotlib pyarrow markdown --break-system-packages
 ```
 Only install what the chosen market needs (yfinance for US/global, akshare for
 China/HK news+fundamentals, pykrx for Korea). The broker MCP path needs none of these.

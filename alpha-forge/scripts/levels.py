@@ -13,6 +13,8 @@ Design:
     tighter-but-sane. Wider stops in high-vol names, by construction.
   * Targets: the nearest resistance, plus an R-multiple target so reward is framed
     against the risk you're taking.
+  * Every price level is annotated with its signed % move vs the current price
+    (`pct`): positive = 上涨空间, negative = 回撤幅度.
   * A plain-language bias that combines the trend, where price sits in its range, and
     (optionally) the latest strategy signal + regime exposure.
 """
@@ -34,6 +36,13 @@ def _nearest_above(price, levels):
     return min(cand) if cand else np.nan
 
 
+def _pct(level, price):
+    """Signed % move from current price to `level` (+涨幅 / −跌幅). None if N/A."""
+    if level is None or not np.isfinite(level) or not price:
+        return None
+    return round((level / price - 1.0) * 100.0, 2)
+
+
 def trade_levels(df: pd.DataFrame, *, signal: float | None = None,
                  regime_scale: float | None = None, atr_mult: float = 2.0,
                  rr: float = 2.0) -> dict:
@@ -43,7 +52,8 @@ def trade_levels(df: pd.DataFrame, *, signal: float | None = None,
     regime_scale : current regime exposure multiplier in [0,1] (optional).
     atr_mult     : stop distance in ATRs below the entry.
     rr           : reward/risk multiple for the secondary target.
-    Returns a dict of levels + a 'bias' string. All prices rounded to 2dp.
+    Returns a dict of levels + per-level % moves (`pct`) + a 'bias' string.
+    All prices rounded to 2dp.
     """
     c = df["close"]
     price = float(c.iloc[-1])
@@ -80,6 +90,20 @@ def trade_levels(df: pd.DataFrame, *, signal: float | None = None,
     target2 = round(entry + rr * risk, 2)
     reward_risk = round((target1 - entry) / risk, 2) if risk > 0 else np.nan
 
+    sup1 = round(sup1, 2) if np.isfinite(sup1) else None
+    sup2 = round(sup2, 2) if np.isfinite(sup2) else None
+    res1 = round(res1, 2) if np.isfinite(res1) else None
+    res2 = round(res2, 2) if np.isfinite(res2) else None
+
+    # 每个价位相对现价的涨/跌幅(%)，正=上涨空间，负=回撤幅度
+    pct = {
+        "support1": _pct(sup1, price), "support2": _pct(sup2, price),
+        "resistance1": _pct(res1, price), "resistance2": _pct(res2, price),
+        "buy_low": _pct(buy_lo, price), "buy_high": _pct(buy_hi, price),
+        "stop_loss": _pct(stop, price),
+        "target1": _pct(target1, price), "target2": _pct(target2, price),
+    }
+
     # Bias text
     trend = "上升" if (np.isfinite(ma200) and price > ma200) else "下降/震荡"
     pctb = bb["pctb"]
@@ -92,22 +116,31 @@ def trade_levels(df: pd.DataFrame, *, signal: float | None = None,
 
     return {
         "price": round(price, 2), "atr": round(atr, 2),
-        "support1": round(sup1, 2) if np.isfinite(sup1) else None,
-        "support2": round(sup2, 2) if np.isfinite(sup2) else None,
-        "resistance1": round(res1, 2) if np.isfinite(res1) else None,
-        "resistance2": round(res2, 2) if np.isfinite(res2) else None,
+        "support1": sup1, "support2": sup2,
+        "resistance1": res1, "resistance2": res2,
         "buy_zone": [buy_lo, buy_hi],
         "stop_loss": stop,
         "target1": target1, "target2": target2,
         "reward_risk": reward_risk,
+        "pct": pct,                       # 各价位相对现价涨跌幅(%)
         "bias": " | ".join(bits),
     }
 
 
+def _fp(v):
+    """Format a signed percent like '+8.7%' / '-19.0%' / '—'."""
+    return "—" if v is None else f"{v:+.1f}%"
+
+
 def format_levels(lv: dict, symbol: str = "") -> str:
-    """One-line-per-field human readout for a report."""
+    """One-line-per-field human readout for a report, each price annotated with its
+    move vs current price (+涨幅 / −跌幅)."""
     bz = lv["buy_zone"]
-    return (f"{symbol} 现价 {lv['price']} | 建议买入区 {bz[0]}–{bz[1]} | 止损 {lv['stop_loss']} "
-            f"| 目标1 {lv['target1']} 目标2 {lv['target2']} (盈亏比 {lv['reward_risk']})\n"
-            f"  支撑 {lv['support1']}/{lv['support2']}  阻力 {lv['resistance1']}/{lv['resistance2']}\n"
+    p = lv.get("pct", {})
+    return (f"{symbol} 现价 {lv['price']} | 建议买入区 {bz[0]}({_fp(p.get('buy_low'))})–{bz[1]}({_fp(p.get('buy_high'))}) "
+            f"| 止损 {lv['stop_loss']}({_fp(p.get('stop_loss'))}) "
+            f"| 目标1 {lv['target1']}({_fp(p.get('target1'))}) 目标2 {lv['target2']}({_fp(p.get('target2'))}) "
+            f"(盈亏比 {lv['reward_risk']})\n"
+            f"  支撑 {lv['support1']}({_fp(p.get('support1'))})/{lv['support2']}({_fp(p.get('support2'))})  "
+            f"阻力 {lv['resistance1']}({_fp(p.get('resistance1'))})/{lv['resistance2']}({_fp(p.get('resistance2'))})\n"
             f"  {lv['bias']}")

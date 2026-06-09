@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A股盘后复盘 — 2026-06-09（周二）</title><style>
+:root{--fg:#1f2329;--muted:#6b7280;--line:#e8eaed;--accent:#3a66c4;--accent2:#4a78c8;
+--pos:#127a3d;--neg:#c0392b;--bg:#fff;--card:#f7f8fa;}
+*{box-sizing:border-box}
+body{margin:0;background:#eef0f3;color:var(--fg);
+font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",Helvetica,Arial,sans-serif;
+line-height:1.65;font-size:15px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:880px;margin:24px auto;background:var(--bg);border-radius:14px;
+box-shadow:0 1px 3px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.05);overflow:hidden}
+.hd{padding:26px 34px 18px;border-bottom:3px solid var(--accent);
+background:linear-gradient(180deg,#fafbfd,#fff)}
+.hd h1{margin:0;font-size:23px;letter-spacing:.5px}
+.hd .sub{color:var(--muted);font-size:13px;margin-top:6px}
+.bd{padding:10px 34px 30px}
+.bd h2{font-size:18px;margin:26px 0 10px;padding:8px 0 6px 12px;border-left:4px solid var(--accent2);
+background:linear-gradient(90deg,#f5f8ff,transparent)}
+.bd h3{font-size:15.5px;margin:20px 0 8px;color:#2a2f36;border-bottom:1px solid var(--line);padding-bottom:5px}
+.bd p{margin:10px 0}
+.bd a{color:var(--accent);text-decoration:none}.bd a:hover{text-decoration:underline}
+.bd ul,.bd ol{margin:8px 0 8px 4px;padding-left:22px}.bd li{margin:5px 0}
+.bd hr{border:none;border-top:1px solid var(--line);margin:20px 0}
+.bd code{background:#f1f3f5;padding:1px 6px;border-radius:5px;font-size:13px;
+font-family:"SF Mono",Consolas,Menlo,monospace}
+.bd pre{background:#f7f8fa;border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto}
+.bd pre code{background:none;padding:0}
+blockquote{margin:14px 0;padding:11px 16px;background:var(--card);border-left:4px solid #cbd2dc;
+border-radius:0 8px 8px 0;color:#444;font-size:14px}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px;
+box-shadow:0 0 0 1px var(--line);border-radius:8px;overflow:hidden;display:table}
+thead th{background:#f0f3f8;color:#3b4658;font-weight:600;text-align:left;
+padding:9px 12px;border-bottom:2px solid #dfe4ea;white-space:nowrap}
+tbody td{padding:8px 12px;border-bottom:1px solid #eef0f2;vertical-align:top}
+tbody tr:nth-child(even){background:#fafbfc}
+tbody tr:hover{background:#f4f7fc}
+.tablewrap{overflow-x:auto;margin:14px 0}.tablewrap table{margin:0}
+span[style*="color:#d62828"],span[style*="color: #d62828"]{
+background:#fdecec;padding:1px 6px;border-radius:5px;font-weight:600}
+.pos{color:var(--pos);font-weight:600}.neg{color:var(--neg);font-weight:600}
+.ft{padding:14px 34px 26px;color:var(--muted);font-size:12px;border-top:1px solid var(--line);background:#fafbfc}
+@media(max-width:640px){.wrap{margin:0;border-radius:0}.bd,.hd,.ft{padding-left:18px;padding-right:18px}}
+@media print{body{background:#fff}.wrap{box-shadow:none;margin:0;max-width:none}}
+</style></head>
+<body><div class="wrap">
+<div class="hd"><h1>A股盘后复盘 — 2026-06-09（周二）</h1><div class="sub">2026-06-09（周二） · alpha-forge 盘后复盘</div></div>
+<div class="bd"><blockquote>
+<p>由 quant-trading skill 生成。<strong>观察池 = trading/watchlist_cn.txt 共15只（算力/光通信/PCB/MLCC主题）</strong>；A股账户无持仓（账户内仅美股 INTC，不计入）。
+数据：券商接口（盈透-Stock Connect）近6个月日线，<strong>行情延迟约900秒</strong>。沪深300以场内 <strong>159925 沪深300ETF</strong> 代理（无直连指数合约）。买卖点为脚本依据价格结构+ATR机械计算，<strong>仅复盘不下单，非投资建议</strong>。
+沙箱内 akshare/新浪/东财等境内数据源被网络策略阻断，个股中文新闻流不可得；个股情绪以板块层代理，已如实标注。</p>
+</blockquote>
+<hr />
+<h2>① 🔴 今日重点关注（置顶）</h2>
+<ul>
+<li>🔴 🧩 <span style="color:#d62828"><strong>组合体检：15只观察池"有效押注数仅 1.05" —— 远小于标的数，实质≈押注同一笔</strong></span>。平均相关性0.39、分散化比率1.55、组合β≈<strong>1.97</strong>；1日VaR <span class="neg">-3.4%</span>、CVaR <span class="neg">-4.2%</span>；<strong>沪深300若-10%，组合约 <span class="neg">-19.7%</span></strong>。算力+光通信+PCB/MLCC合计占绝大部分仓位，单一AI算力主线一旦回调，全池同步杀跌。<strong>控制单一主线总敞口、用宽止损，是当前第一要务。</strong></li>
+<li>🔴 📅🌐 <span style="color:#d62828"><strong>高影响数据集中在明天：美国CPI(6/10)、中国CPI/PPI(预计6/10)同日公布，FOMC 6/17（约8天后）</strong></span>。pre_event风险 -0.40，宏观综合 -0.19（伊朗战争推升油价/PPI带来输入性通胀的risk-off底色）。<strong>盘前注意，事件前不宜追高、不宜加杠杆。</strong></li>
+<li>🔴 <span style="color:#d62828"><strong>中科曙光(603019)：全池唯一"观望"信号，明显偏离板块强势</strong></span>。RSI 34.9、布林%B 0.09（贴下轨近超卖）、月内 <span class="neg">-19.6%</span>、3月动量 <span class="neg">-2.3%</span>（全池唯一为负）。<strong>动作：观察 77.9 一线支撑——企稳看超卖反弹（盈亏比3.3），有效跌破则确认走弱、不接飞刀。</strong></li>
+<li>🔴 <span style="color:#d62828"><strong>海光信息(688041)：深度回调贴下轨</strong></span>。RSI 41.8、%B 0.14、月内 <span class="neg">-23.2%</span>、年化波动66%、MACD柱 -7.8、regime仓位已压到×0.35。<strong>动作：256 附近为近端支撑，反弹盈亏比2.6但属高波动右侧未确认，只宜小仓试。</strong></li>
+<li>🔴 <span style="color:#d62828"><strong>涨停集群"不可追"提示（A股微结构）：生益科技、风华高科、亨通光电、长飞光纤 今日+10%封板（主板±10%锁死）</strong></span>，RSI 76–77、%B≥0.85严重超买；三环集团 <span class="pos">+14.36%</span>（创业板±20%）。<strong>涨跌停约束下当日无法追、T+1次日高开追高风险大；apply_cn_rules 已对封板标的执行"不能追"处理。回调到买区再考虑。</strong></li>
+<li>提示：寒武纪(688256) 在1270高位 MACD柱 -25 明显钝化（量价背离），中际旭创(300308) 已成沪深300第一权重股(5.3%)、本池贝塔来源集中——两者一旦转弱对组合β冲击最大。</li>
+</ul>
+<blockquote>
+<p>命中触发：组合过度集中、高影响数据临近、个股进入超卖/偏离板块、微结构涨停约束。</p>
+</blockquote>
+<hr />
+<h2>② 📊 A股大盘 + 🌐 宏观 + 📅 事件前瞻 + 北向</h2>
+<p><strong>📊 A股大盘（沪深300ETF代理）</strong>：今日 <span class="pos">+1.36%</span>，收 4.860。指数regime评分 <strong>+0.16（震荡偏多/中性）</strong>，价在200日均线上方，3月动量 <span class="pos">+4.8%</span>，年化波动 17.5%。<strong>市场宽度健康</strong>：观察池15只中 <strong>86.7% 站上MA50</strong>（宽度评分0.73）。大盘叠加层(指数+宽度) <strong>+0.33，温和risk-on</strong>。
+背景：沪深300处四年高位，科技已升至指数第一大行业（约22%权重），<strong>中际旭创成为沪深300第一权重股(5.3%)，超越宁德时代</strong>——指数本身已高度"AI化"，与本池高度同源。</p>
+<p><strong>🌐 宏观</strong>：macro_score <strong>-0.19（中性偏谨慎）</strong>。地缘 -0.30（伊朗战争推升油价）、事件 -0.40（数据临近de-risk）；中国4月CPI <span class="pos">+1.2%</span>、PPI <span class="pos">+2.8%</span>（连续转正，输入性通胀）。整体risk-on/off基本中性，事件与地缘构成下行扰动。</p>
+<p><strong>📅 事件前瞻（标红）</strong>：<span style="color:#d62828"><strong>美国CPI 6/10（明天）、中国CPI/PPI 预计6/10（明天）、FOMC 6/16–17</strong></span>。明日三大通胀数据同日，市场倾向事件前降风险；FOMC约一周后。</p>
+<p><strong>北向资金</strong>：实时日度北向净流入数据自2024年8月起暂停披露，<strong>今日无官方净流入数值</strong>——以"多只涨停+放量上涨+宽度86.7%"作风险偏好代理，今日呈明显risk-on。
+<strong>对冲建议</strong>：hedge_ratio 0.0（环境中性偏多，暂无需系统性对冲），但<strong>组合β 1.97偏高，risk-off时跌幅放大</strong>，优先以降低单一主线敞口替代对冲。</p>
+<hr />
+<h2>③ 🧩 组合体检（等权15只 vs 沪深300）</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>数值</th>
+<th>解读</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>有效押注数 ENB</td>
+<td><strong>1.05 / 15</strong></td>
+<td>🔴 高度同质，实质≈1笔押注</td>
+</tr>
+<tr>
+<td>分散化比率</td>
+<td>1.55</td>
+<td>偏低</td>
+</tr>
+<tr>
+<td>平均相关性</td>
+<td>0.39</td>
+<td>同涨同跌倾向明显</td>
+</tr>
+<tr>
+<td>组合β（对沪深300）</td>
+<td><strong>1.97</strong></td>
+<td>🔴 偏高，放大涨跌</td>
+</tr>
+<tr>
+<td>1日 VaR / CVaR (95%)</td>
+<td><span class="neg">-3.4%</span> / <span class="neg">-4.2%</span></td>
+<td>单日尾部损失</td>
+</tr>
+<tr>
+<td>沪深300 <span class="neg">-10%</span> 压力</td>
+<td><strong><span class="neg">-19.7%</span></strong></td>
+<td>🔴 单板块回调全池受冲</td>
+</tr>
+<tr>
+<td>板块敞口</td>
+<td>PCB/覆铜板20%·MLCC13%·光模块13%·光纤13%·算力芯片13%·其余(光器件/服务器/晶圆/通信)各7%</td>
+<td>算力+光通信主线 ≈ 全部</td>
+</tr>
+</tbody>
+</table></div>
+<p><span style="color:#d62828"><strong>结论：观察池"标的多、押注少"，本质是一条AI算力/光互联主线。任何针对该主线的利空（数据、估值、订单证伪）都会让全池同步回撤——务必把"单一主线总敞口"当成真正的风险预算来管理。</strong></span></p>
+<hr />
+<h2>④ 观察池总览表（按3月动量排序；无A股持仓故无成本盈亏列）</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>标的</th>
+<th>名称</th>
+<th>板块</th>
+<th>现价</th>
+<th>今日</th>
+<th>信号</th>
+<th>regime仓位</th>
+<th>复合情绪</th>
+<th>RSI</th>
+<th>%B</th>
+<th>买入区</th>
+<th>止损</th>
+<th>目标1</th>
+<th>盈亏比</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>000636</td>
+<td>风华高科</td>
+<td>MLCC</td>
+<td>61.08</td>
+<td><span class="pos">+9.99%</span>🔺涨停</td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>76.6</td>
+<td>0.82</td>
+<td>55.1–59.1</td>
+<td>43.2</td>
+<td>64.6</td>
+<td>0.54</td>
+<td>超买，回调买区再看</td>
+</tr>
+<tr>
+<td>300408</td>
+<td>三环集团</td>
+<td>MLCC</td>
+<td>140.40</td>
+<td><span class="pos">+14.36%</span></td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>71.1</td>
+<td>0.83</td>
+<td>125.4–135.4</td>
+<td>110.5</td>
+<td>144.0</td>
+<td>0.68</td>
+<td>强势但超买，勿追</td>
+</tr>
+<tr>
+<td>600183</td>
+<td>生益科技</td>
+<td>PCB</td>
+<td>147.47</td>
+<td><span class="pos">+10.0%</span>🔺涨停</td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>76.5</td>
+<td>0.83</td>
+<td>132.9–142.6</td>
+<td>116.8</td>
+<td>147.9</td>
+<td>0.48</td>
+<td>封板不可追</td>
+</tr>
+<tr>
+<td>300308</td>
+<td>中际旭创</td>
+<td>光模块</td>
+<td>1180.0</td>
+<td><span class="pos">+2.22%</span></td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>61.9</td>
+<td>0.69</td>
+<td>1115–1147</td>
+<td>997</td>
+<td>1281</td>
+<td>1.13</td>
+<td>龙头，回调1115承接</td>
+</tr>
+<tr>
+<td>600487</td>
+<td>亨通光电</td>
+<td>光纤</td>
+<td>105.02</td>
+<td><span class="pos">+10.0%</span>🔺涨停</td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>77.1</td>
+<td>1.08</td>
+<td>95.4–101.8</td>
+<td>77.6</td>
+<td>—</td>
+<td>2.0</td>
+<td>破上轨极度超买</td>
+</tr>
+<tr>
+<td>300502</td>
+<td>新易盛</td>
+<td>光模块</td>
+<td>786.67</td>
+<td><span class="pos">+8.51%</span></td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>66.9</td>
+<td>0.89</td>
+<td>716–763</td>
+<td>646</td>
+<td>818</td>
+<td>0.83</td>
+<td>近上轨，回调买</td>
+</tr>
+<tr>
+<td>601869</td>
+<td>长飞光纤</td>
+<td>光纤</td>
+<td>484.33</td>
+<td><span class="pos">+10.0%</span>🔺涨停</td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>68.3</td>
+<td>1.11</td>
+<td>434–468</td>
+<td>385</td>
+<td>487</td>
+<td>0.54</td>
+<td>封板+破上轨，勿追</td>
+</tr>
+<tr>
+<td>002463</td>
+<td>沪电股份</td>
+<td>PCB</td>
+<td>141.10</td>
+<td><span class="pos">+2.99%</span></td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>66.9</td>
+<td>0.85</td>
+<td>127.8–136.7</td>
+<td>114.5</td>
+<td>142.8</td>
+<td>0.59</td>
+<td>偏强，区间上沿</td>
+</tr>
+<tr>
+<td>688256</td>
+<td>寒武纪</td>
+<td>算力芯片</td>
+<td>1270.0</td>
+<td><span class="pos">+1.57%</span></td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>53.1</td>
+<td>0.33</td>
+<td>1192–1229</td>
+<td>1048</td>
+<td>1429</td>
+<td>1.34</td>
+<td>高位MACD钝化，谨慎</td>
+</tr>
+<tr>
+<td>300394</td>
+<td>天孚通信</td>
+<td>光器件</td>
+<td>443.88</td>
+<td><span class="pos">+4.43%</span></td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>57.3</td>
+<td>0.67</td>
+<td>413–427</td>
+<td>353</td>
+<td>504</td>
+<td>1.24</td>
+<td>中性偏多</td>
+</tr>
+<tr>
+<td>300476</td>
+<td>胜宏科技</td>
+<td>PCB</td>
+<td>342.55</td>
+<td><span class="pos">+8.80%</span></td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>49.5</td>
+<td>0.34</td>
+<td>324–330</td>
+<td>277</td>
+<td>397</td>
+<td>1.40</td>
+<td>今日反弹但月内偏弱</td>
+</tr>
+<tr>
+<td>688981</td>
+<td>中芯国际</td>
+<td>晶圆代工</td>
+<td>127.30</td>
+<td><span class="pos">+4.41%</span></td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>49.7</td>
+<td>0.41</td>
+<td>116–123</td>
+<td>105</td>
+<td>155</td>
+<td>2.29</td>
+<td>中性，区间中部</td>
+</tr>
+<tr>
+<td>688041</td>
+<td>海光信息</td>
+<td>算力芯片</td>
+<td>268.18</td>
+<td><span class="pos">+3.27%</span></td>
+<td>多</td>
+<td>×0.35</td>
+<td>+0.39</td>
+<td>41.8</td>
+<td>0.14</td>
+<td>256–259</td>
+<td>220</td>
+<td>356</td>
+<td>2.64</td>
+<td>🔴深调贴下轨，小仓试</td>
+</tr>
+<tr>
+<td>000063</td>
+<td>中兴通讯</td>
+<td>通信</td>
+<td>39.13</td>
+<td><span class="pos">+6.30%</span></td>
+<td>多</td>
+<td>×0.70</td>
+<td>+0.39</td>
+<td>56.6</td>
+<td>0.90</td>
+<td>37.0–38.1</td>
+<td>33.5</td>
+<td>39.6</td>
+<td>0.51</td>
+<td>近上沿，盈亏比差</td>
+</tr>
+<tr>
+<td>603019</td>
+<td>中科曙光</td>
+<td>算力服务器</td>
+<td>80.40</td>
+<td><span class="pos">+2.41%</span></td>
+<td><strong>观望</strong></td>
+<td>×0.35</td>
+<td>+0.39</td>
+<td>34.9</td>
+<td>0.09</td>
+<td>77.9–78.4</td>
+<td>70.4</td>
+<td>104.4</td>
+<td>3.34</td>
+<td>🔴近超卖，看支撑</td>
+</tr>
+</tbody>
+</table></div>
+<p>注：复合情绪全池同值(+0.39) 因个股层以板块层代理（沙箱内境内个股新闻不可得）；强弱差异请以技术/信号列为准。</p>
+<hr />
+<h2>⑤ 各标的技术 / 信号 / 买卖点 / 三层情绪点评</h2>
+<p><strong>三层情绪（24h时效加权）</strong>：板块层 <strong>+0.43（强正：AI光模块/算力高景气，旭创登顶沪深300）</strong>；市场层 ETF叠加 +0.33 / 宏观新闻 +0.14；个股层缺直连数据，以板块代理 → 复合 ≈ <strong>+0.39（偏多）</strong>。下方点评结合技术面区分强弱。</p>
+<ul>
+<li><strong>300308 中际旭创｜光模块龙头</strong>：<span class="pos">+2.22%</span>，RSI 61.9、%B 0.69，3月+119%。已成沪深300第一权重股，量价健康未过热；创业板±20%。买区1115–1147、止损997、目标1281（盈亏比1.13）。<em>组合β主要来源，龙头稳则全池稳。</em></li>
+<li><strong>300502 新易盛｜光模块</strong>：<span class="pos">+8.51%</span>，RSI 66.9、%B 0.89近上轨。创业板±20%。回调716–763承接，止损646，目标818。<em>强势但短线偏热。</em></li>
+<li><strong>300394 天孚通信｜光器件</strong>：<span class="pos">+4.43%</span>，RSI 57.3、%B 0.67，3月+31.8%（光模块组中动量最温和）。买区413–427、目标504（盈亏比1.24）。<em>中性偏多，可作组内相对低位。</em></li>
+<li><strong>600487 亨通光电 / 601869 长飞光纤｜光纤光缆</strong>：双双+10%涨停，%B 1.08/1.11破上轨，RSI 77/68。主板±10%锁死，<strong>当日不可追、T+1追高风险大</strong>；回调买区再看。</li>
+<li><strong>600183 生益科技 / 002463 沪电股份 / 300476 胜宏科技｜PCB/覆铜板</strong>：生益+10%封板、RSI 76.5严重超买；沪电+2.99%、RSI 66.9区间上沿；胜宏+8.8%但月内-9.4%、RSI 49.5相对最不热（买区324–330、盈亏比1.4，组内右侧较稳）。</li>
+<li><strong>000636 风华高科 / 300408 三环集团｜MLCC/被动</strong>：风华+9.99%封板、年化波动106%极高、RSI 76.6；三环+14.36%（创业板）、RSI 71。均强势但严重超买，<strong>追高即接最后一棒风险</strong>。</li>
+<li><strong>688256 寒武纪｜算力芯片</strong>：<span class="pos">+1.57%</span>，RSI 53、%B 0.33，但 <strong>MACD柱 -25高位明显钝化</strong>，3月+69%后动能减弱；科创板±20%。买区1192–1229、止损1048。<em>量价背离，转弱需警惕。</em></li>
+<li><strong>688041 海光信息｜算力芯片</strong>：🔴 <span class="pos">+3.27%</span>但月内-23.2%、RSI 41.8、%B 0.14贴下轨，regime×0.35。256–259近端支撑，止损220，目标356（盈亏比2.64）。<em>深调右侧未确认，小仓。</em></li>
+<li><strong>688981 中芯国际｜晶圆代工</strong>：<span class="pos">+4.41%</span>，RSI 49.7、%B 0.41区间中部，年化波动108%。买区116–123、目标155（盈亏比2.29）。<em>中性，估值/波动均高。</em></li>
+<li><strong>000063 中兴通讯｜通信设备</strong>：<span class="pos">+6.30%</span>，RSI 56.6、%B 0.90近上沿，盈亏比仅0.51。<em>偏中性，位置不佳。</em></li>
+<li><strong>603019 中科曙光｜算力服务器</strong>：🔴 <span class="pos">+2.41%</span>但RSI 34.9、%B 0.09近超卖、月内-19.6%、3月动量-2.3%（全池唯一负、唯一观望信号）。77.9支撑是关键，企稳反弹盈亏比3.34，破位则确认走弱。<em>全池最弱、最该单独盯。</em></li>
+</ul>
+<hr />
+<h2>⑥ 📈 信号回看</h2>
+<p>今日首次记录本观察池15条信号 → <code>trading/reports/signal_log_cn.jsonl</code>（含日期/代码/信号/价格/RSI）。
+<code>signal_tracker.evaluate(horizon=5)</code>：<strong>暂无满期信号（需≥5个交易日）</strong>，命中率将在累计后于后续复盘给出。今日全池 14多1观望，信号整体偏多但伴随普遍超买，回看时需重点检验"涨停后追多"的5日表现。</p>
+<p>PIT快照已写入 <code>trading/pit_store_cn/</code>（sentiment + env：大盘/宏观/情绪），逐日累积形成可回测的point-in-time库。</p>
+<hr />
+<h2>⑦ 免责声明</h2>
+<p>本复盘由量化脚本自动生成，仅为技术面/组合风险的研究性梳理，<strong>不构成任何投资建议或买卖要约</strong>。所有买卖点、止损止盈为依据历史价格结构与ATR的机械测算，不预测未来。行情数据来自券商延迟接口（约900秒，沪深300以ETF代理），并受沙箱网络限制——<strong>境内个股新闻、实时北向资金数据不可得，相关栏目已如实标注为代理或缺失，未作编造</strong>。市场有风险，决策请自行独立判断并自负盈亏。</p></div>
+<div class="ft">本页由 alpha-forge 技能生成 · 仅复盘研究，非投资建议 · 回测/指标不代表未来。</div>
+</div></body></html>
