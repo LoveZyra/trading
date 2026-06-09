@@ -260,18 +260,41 @@ rpt.plot_result(result, benchmark=bench, path="equity.png")   # equity + drawdow
 md = rpt.markdown_report(result, name="MA crossover", benchmark=bench)
 ```
 
-**Unified HTML output (preferred for 复盘/分析报告).** Author the report as markdown,
-then render it to one clean, self-contained, good-looking HTML page with
-`scripts.html_report` (consistent styling: accent headers, striped tables, red 🔴
-callouts, auto green/red coloring of +x%/-x%, and table-normalization so a sloppily
-authored table still renders). Needs `pip install markdown --break-system-packages`.
+**结构化 HTML 报告（复盘/分析报告的最终产出，取代 markdown）。** 不再把报告写成
+markdown 再转 HTML——直接构造一个 **结构化 report dict** 交给 `scripts.html_report`，
+它会渲染成一份**机构研报风、自包含单文件、可打印为 PDF** 的 HTML：买卖点为核心
+（单标的=价格阶梯 止损→买区→现价→目标 + 盈亏比；组合=带内嵌 R/R 条的密集大表），
+配大盘/宏观评分计、三层情绪条、策略 vs 基准净值曲线，**红涨绿跌**（A股惯例）。
+字段「给了就渲染、不给就跳过」，完整契约见 `SKILL` 同级的 **`SCHEMA.md`**。
+无需第三方库（CSS/JS 已内联，中文走系统字体回退）。
 
 ```python
 from scripts import html_report as H
-H.save_html(md_text, "trading/reports/美股复盘_2026-06-09.html",
-            title="美股盘后复盘", subtitle="2026-06-09 · alpha-forge")
-H.md_file_to_html("trading/reports/x.md")     # or convert an existing .md in place
+
+report = {
+    "meta": {"title": "美股盘后复盘", "subtitle": "MU · 美光科技",
+             "report_type": "single", "date": "2026-06-09", "market": "美股",
+             "data_source": "IBKR 5年日线（延迟900s）", "tag": "机械量化参考 · 非投资建议"},
+    "verdict": {"stance": "偏多 · 不追高", "action": "等回调 <b>860–915</b> 分批…", "summary": "…"},
+    "alerts": [{"level": "high", "symbol": "MU", "signal": "long",
+                "headline": "…", "detail": "…", "action": "…"}],
+    "regime": {...}, "macro": {...}, "calendar": [...],          # 三件套
+    "technical": {"level": {"price": 949.3, "buy_low": 860, "buy_high": 915,
+                            "stop": 751, "target": 1089, "rr": 1.48}, "stats": [...]},
+    "levels": [{"symbol": "GOOG", "price": 361.2, "signal": "long",
+                "buy_low": 355, "buy_high": 356, "stop": 336.7, "target": 404.4,
+                "rr": 2.52, "rsi": 44, "note": "…"}],            # 组合/自选池：买卖点大表
+    "backtest": {"strategy_label": "时序动量", "equity": {"strategy": [...], "benchmark": [...]}},
+    "sentiment": {...}, "portfolio_health": {...}, "disclaimer": "…",
+}
+H.save_html(report, "trading/reports/美股复盘_2026-06-09.html")   # -> 单文件 .html
+html = H.render(report)                                          # 或直接拿字符串
 ```
+
+> 三类报告同一套模板：`report_type` 取 `single`（个股）/`portfolio`（组合自选池）/
+> `market`（市场扫描）/`backtest`（回测）。`scripts.report` 仍可生成 markdown 草稿
+> 留痕，但**最终展示走上面的 dict**——版式稳定、买卖点层级清晰，不再有 markdown
+> 表格错位 / 内联 span 渲染差的问题。
 
 Or do steps 1–5 from the command line:
 

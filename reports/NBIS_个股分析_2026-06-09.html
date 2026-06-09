@@ -1,20 +1,9 @@
-"""量化分析报告渲染器 — 把结构化 report dict 渲染成单文件机构研报风 HTML。
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>美股个股分析</title>
+<style>
 
-用法：
-    from scripts import html_report as H
-    report = {"meta": {...}, "verdict": {...}, "levels": [...], ...}   # 见 SCHEMA.md
-    H.save_html(report, "trading/reports/美股复盘_2026-06-09.html")
-    html = H.render(report)                                            # 或拿字符串
-
-颜色为「红涨绿跌」(A股惯例)；如需西式(绿涨红跌)，把下方 _CSS 里 --pos/--neg 两值对调。
-自包含、无外部依赖：CSS / JS 已内联，中文字体走系统回退，离线可开。
-每个字段「给了就渲染、不给就跳过」，支持单标的 / 组合 / 自选池 / 回测等多种报告。
-"""
-from __future__ import annotations
-
-import json as _json
-
-_CSS = r"""
 /* ============================================================================
    alpha-forge · 量化分析报告模板  —  institutional research-note style
    Light, restrained, print-first. All figures tabular & monospaced.
@@ -349,9 +338,13 @@ table.grid .flagcell{color:var(--flag);font-weight:600}
   .masthead .stamp{position:absolute}
 }
 
-"""
 
-_JS = r"""
+</style></head>
+<body>
+<div class="sheet" id="sheet"></div>
+<script id="report-data" type="application/json">{"meta": {"title": "美股个股分析", "subtitle": "NBIS · Nebius Group（AI 云 / 算力基建）", "report_type": "single", "date": "2026-06-09", "weekday": "周二", "market": "美股（纳指）", "data_source": "IBKR 日线（延迟约900s）", "tag": "机械量化参考 · 非投资建议", "generated_by": "alpha-forge"}, "verdict": {"stance": "偏多 · 不追高", "action": "\u003cb>等回踩 185–207 买区分批，止损 151\u003c/b>；现价 $218 处买区上方、阻力下方的中段，直接追盈亏比不划算。", "summary": "结构性 AI 云超高增长、趋势未破（价站上 MA50/MA200，均线交叉+时序动量均做多）；但年化波动 109%、regime 仓位压到 ×0.40，刚从高点回撤 18%、今日随 AI 基建链 -4.3%。"}, "alerts": [{"level": "high", "symbol": "NBIS", "name": "Nebius", "signal": "long", "headline": "高波动 regime，仓位自动压到 ×0.40", "detail": "年化波动 109%、GMM 判为高波动/risk-off；12月 +351% 后估值反映大量乐观预期。", "action": "控制单笔敞口、用宽止损，不在现价追高。"}, {"level": "mid", "symbol": "NBIS", "name": "Nebius", "signal": "watch", "headline": "短线动能转弱，等回踩确认", "detail": "RSI 52.7 中性、MACD 柱转负、距 52 周高 $264.5 回撤 17.6%。", "action": "盯 MA50≈175 一线，回踩 185–207 分批；跌破 151 趋势假设作废。"}], "technical": {"title": "📈 NBIS 技术与买卖点", "signal_note": "ma_cross +1 / ts_mom +1 · regime ×0.40 · GMM 高波动", "level": {"price": 218.0, "buy_low": 184.73, "buy_high": 206.91, "stop": 151.46, "target": 267.47, "target2": 284.54, "rr": 1.62, "change_pct": -4.31}, "stats": [{"k": "距52周高", "v": "-17.6%", "x": "高点 $264.5"}, {"k": "RSI / %B", "v": "52.7", "x": "中性 · %B 0.48"}, {"k": "ADX(14)", "v": "33.9", "x": "趋势力度强"}, {"k": "年化波动", "v": "109%", "x": "极高", "color": "var(--warn)"}, {"k": "1月 / 3月", "v": "+23% / +126%", "x": "动量强"}, {"k": "6月 / 12月", "v": "+122% / +351%", "x": "超高增长", "color": "var(--pos)"}, {"k": "均线排列", "v": "多头", "x": "价 > MA50 175 > MA200 118"}, {"k": "策略信号", "v": "做多", "x": "均线交叉 + 时序动量"}], "note": "NBIS 系前 Yandex 重组上市，长周期含停牌段，技术指标以近端为准。"}, "sentiment": {"title": "🗞 两层时效情绪", "composite": -0.07, "note": "利好被近两日 AI 基建 selloff 中和，短期转中性偏空，与 MACD 转弱一致。", "layers": [{"layer": "个股新闻", "score": -0.19, "key": "创新高后回撤，AI 基建获利了结"}, {"layer": "板块(AI云)", "score": 0.09, "key": "neocloud 需求旺、GPU 满产；泡沫担忧升温"}]}, "backtest": {"title": "NBIS · MA 交叉 walk-forward（样本外）", "head_note": "OOS Sharpe 0.87 > 买入持有 0.65", "strategy_label": "MA交叉(择时)", "benchmark_label": "买入持有", "stats": [{"k": "OOS Sharpe", "v": "0.87"}, {"k": "OOS 收益", "v": "+321%"}, {"k": "买入持有 Sharpe", "v": "0.65"}, {"k": "说明", "v": "择时优于长持"}]}, "conclusion": "NBIS 是 AI 云稀缺高增长标的，趋势与基本面都强，但当前是「高位高波动、刚回撤」的位置。系统建议\u003cb>等回踩 185–207 分批、止损 151\u003c/b>，而非现价追高——纪律比方向更重要。", "disclaimer": "本页由 alpha-forge 量化脚本自动生成，仅为技术面/情绪研究性梳理，不构成投资建议。买卖点为价格结构 + ATR 机械测算，不预测未来；NBIS 长周期含重组/停牌段，长期回测仅供参考。市场有风险，决策自负盈亏。", "sources": [{"label": "Nebius Q1 2026 6-K (SEC)", "url": "https://www.sec.gov/Archives/edgar/data/0001513845/000110465926053464/tm2613296d1_ex99-1.htm"}]}</script>
+<script>
+
 /* ============================================================================
    alpha-forge · 报告渲染器
    Reads a single report object (schema in SCHEMA.md) and builds the DOM.
@@ -836,33 +829,7 @@ _JS = r"""
   global.QuantReport = { render: render };
 })(window);
 
-"""
 
-
-def _title(report: dict) -> str:
-    meta = report.get("meta") or {}
-    return meta.get("title") or "量化分析报告"
-
-
-def render(report: dict) -> str:
-    """结构化 report dict -> 一份完整、自包含、带样式的 HTML 字符串。"""
-    # 把 JSON 里所有 < 转成 \u003c，确保内嵌的 HTML 片段不会提前关闭 <script> 块
-    data = _json.dumps(report, ensure_ascii=False).replace("<", "\\u003c")
-    return (
-        '<!DOCTYPE html>\n<html lang="zh-CN"><head><meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        '<title>' + _title(report) + '</title>\n<style>\n' + _CSS + '\n</style></head>\n'
-        '<body>\n<div class="sheet" id="sheet"></div>\n'
-        '<script id="report-data" type="application/json">' + data + '</script>\n'
-        '<script>\n' + _JS + '\n</script>\n'
-        '<script>QuantReport.render(JSON.parse('
-        'document.getElementById("report-data").textContent),'
-        ' document.getElementById("sheet"));</script>\n</body></html>'
-    )
-
-
-def save_html(report: dict, path: str) -> str:
-    """把结构化 report dict 写成单文件自包含 .html 报告，返回路径。"""
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(render(report))
-    return path
+</script>
+<script>QuantReport.render(JSON.parse(document.getElementById("report-data").textContent), document.getElementById("sheet"));</script>
+</body></html>
