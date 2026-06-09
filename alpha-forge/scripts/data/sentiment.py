@@ -82,12 +82,19 @@ def _score_chinese(text: str) -> tuple[float, int]:
     total, hits = 0.0, 0
     for lex in (POS_CN, NEG_CN):
         for term, val in lex.items():
-            c = text.count(term)
-            if c:
-                # crude negation: a negator immediately before the term flips it
-                flip = any((term in text) and (neg + term in text) for neg in NEGATORS_CN)
-                total += (-val if flip else val) * c
-                hits += c
+            start = 0
+            while True:
+                idx = text.find(term, start)
+                if idx < 0:
+                    break
+                # positional negation: only flip THIS occurrence if a negator sits in the
+                # 1-2 chars immediately before it ("不大涨" flips, but a "不" 50 chars away
+                # no longer flips an unrelated "大涨"). Per-occurrence, not whole-string.
+                pre = text[max(0, idx - 2):idx]
+                flip = any(neg in pre for neg in NEGATORS_CN)
+                total += (-val if flip else val)
+                hits += 1
+                start = idx + len(term)
     return total, hits
 
 

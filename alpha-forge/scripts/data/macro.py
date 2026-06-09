@@ -60,7 +60,10 @@ def _tanh(x):
 def vix_signal(vix_close: pd.Series, lookback: int = 252) -> float:
     """Risk score from the VIX (negative = fearful). Combines the absolute level
     (band-mapped) with a spike term (current vs its recent average)."""
-    v = float(vix_close.iloc[-1])
+    s = pd.Series(vix_close).dropna()
+    if len(s) == 0:
+        return 0.0
+    v = float(s.iloc[-1])
     # level bands -> base score
     if v < 14:
         base = 0.4
@@ -75,7 +78,7 @@ def vix_signal(vix_close: pd.Series, lookback: int = 252) -> float:
     else:
         base = -1.0
     # spike term: current vs trailing median
-    hist = vix_close.tail(lookback)
+    hist = s.tail(lookback)
     med = float(hist.median()) if len(hist) else v
     spike = _tanh((med - v) / max(med * 0.5, 1e-6))   # v>med -> negative
     return max(-1.0, min(1.0, 0.6 * base + 0.4 * spike))
@@ -84,16 +87,20 @@ def vix_signal(vix_close: pd.Series, lookback: int = 252) -> float:
 def rates_signal(y10_close: pd.Series, lookback: int = 63) -> float:
     """Risk score from the 10y yield trend. Rising yields over `lookback` bars are a
     headwind for equities (esp. long-duration/growth) -> negative."""
-    if len(y10_close) <= lookback:
+    s = pd.Series(y10_close).dropna()
+    if len(s) <= lookback:
         return 0.0
-    chg = float(y10_close.iloc[-1] - y10_close.iloc[-lookback])   # in yield points
+    chg = float(s.iloc[-1] - s.iloc[-lookback])   # in yield points
     return max(-1.0, min(1.0, -_tanh(chg / 0.5)))                 # +0.5pp ~ -0.46
 
 
 def curve_signal(y10_close: pd.Series, y2_close: pd.Series) -> float:
     """Yield-curve slope (10y - 2y). Inverted (<0) -> recession risk -> risk-off."""
     try:
-        slope = float(y10_close.iloc[-1] - y2_close.iloc[-1])
+        a, b = pd.Series(y10_close).dropna(), pd.Series(y2_close).dropna()
+        if len(a) == 0 or len(b) == 0:
+            return 0.0
+        slope = float(a.iloc[-1] - b.iloc[-1])
     except Exception:  # noqa: BLE001
         return 0.0
     return max(-1.0, min(1.0, _tanh(slope / 0.5)))               # inverted -> negative

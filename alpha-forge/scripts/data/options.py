@@ -16,8 +16,10 @@ import numpy as np
 def expected_move(price: float, atm_iv: float, days: int) -> dict:
     """Expected ±move over `days` from at-the-money implied vol (annualized, e.g. 0.6).
     move = price * iv * sqrt(days/365). Returns the move and the implied range."""
-    mv = float(price) * float(atm_iv) * np.sqrt(max(days, 0) / 365.0)
-    return {"expected_move": round(mv, 2), "move_pct": round(mv / price * 100, 2),
+    price = float(price)
+    mv = price * float(atm_iv) * np.sqrt(max(days, 0) / 365.0)
+    move_pct = round(mv / price * 100, 2) if price else 0.0
+    return {"expected_move": round(mv, 2), "move_pct": move_pct,
             "low": round(price - mv, 2), "high": round(price + mv, 2), "days": days}
 
 
@@ -25,8 +27,9 @@ def expected_move_from_straddle(straddle_price: float, price: float) -> dict:
     """Market's expected move ≈ the ATM straddle (call+put) price. Quick read for
     earnings: if the at-the-money straddle costs $40 on a $400 stock, the options market
     is pricing a ~±10% earnings move."""
-    mv = float(straddle_price)
-    return {"expected_move": round(mv, 2), "move_pct": round(mv / price * 100, 2),
+    mv = float(straddle_price); price = float(price)
+    move_pct = round(mv / price * 100, 2) if price else 0.0
+    return {"expected_move": round(mv, 2), "move_pct": move_pct,
             "low": round(price - mv, 2), "high": round(price + mv, 2)}
 
 

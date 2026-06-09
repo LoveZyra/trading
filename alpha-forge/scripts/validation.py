@@ -108,17 +108,20 @@ def deflated_sharpe_ratio(returns: pd.Series, n_trials: int,
 
     sr_std: spread of per-period Sharpes across the trials. If you pass
     `all_trial_returns` (a DataFrame, one column of returns per trial), it's estimated
-    for you; otherwise defaults to 1.0 (conservative).
+    from them; otherwise it falls back to the analytic standard error of THIS track's own
+    per-period Sharpe, sqrt((1 + sr^2/2)/(n-1)) (Lo 2002). A flat 1.0 is the wrong scale
+    (a per-period Sharpe spread of 1.0 ~= 16 annualized) and pins DSR at ~0 for every
+    realistic strategy -- pass the trial returns for the rigorous multiple-testing haircut.
     """
     if sr_std is None:
         if all_trial_returns is not None and all_trial_returns.shape[1] > 1:
-            srs = []
-            for c in all_trial_returns.columns:
-                _, sr, _, _ = _moments(all_trial_returns[c])
-                srs.append(sr)
-            sr_std = float(np.std(srs, ddof=1)) or 1.0
-        else:
-            sr_std = 1.0
+            srs = [_moments(all_trial_returns[c])[1] for c in all_trial_returns.columns]
+            sr_std = float(np.std(srs, ddof=1)) or None
+        if sr_std is None:
+            # No usable trial dispersion: use the sampling SE of a single per-period Sharpe
+            # estimate as the per-trial spread proxy, instead of an arbitrary (too-large) 1.0.
+            n, sr, _, _ = _moments(returns)
+            sr_std = float(np.sqrt((1.0 + 0.5 * sr ** 2) / max(n - 1, 1))) if n > 2 else 1.0
     bench = expected_max_sharpe(n_trials, sr_std)
     return probabilistic_sharpe_ratio(returns, sr_benchmark=bench)
 
@@ -146,12 +149,15 @@ def pbo_cscv(trial_returns: pd.DataFrame, n_splits: int = 10) -> dict:
         is_sr = M.iloc[is_idx].mean() / M.iloc[is_idx].std(ddof=0).replace(0, np.nan)
         oos_sr = M.iloc[oos_idx].mean() / M.iloc[oos_idx].std(ddof=0).replace(0, np.nan)
         best = is_sr.idxmax()
-        # rank of the IS-best among OOS performances (1 = best)
-        rank = oos_sr.rank(ascending=False)[best]
-        w = rank / (len(oos_sr) + 1)          # relative rank in (0,1)
+        # OOS rank of the IS-best. ascending => rank 1 = WORST, n = BEST, matching
+        # Lopez de Prado's relative rank omega so that a HIGH w means GOOD out-of-sample.
+        rank = oos_sr.rank(ascending=True)[best]
+        w = rank / (len(oos_sr) + 1)          # relative OOS rank in (0,1); higher = better OOS
         lam = np.log(w / (1 - w)) if 0 < w < 1 else 0.0
         logits.append(lam)
     logits = np.array(logits)
-    pbo = float((logits <= 0).mean())          # <=0 => IS-best below OOS median
+    # PBO = P(IS-best lands BELOW the OOS median) = P(logit < 0). A genuinely robust
+    # selection (the IS-best also wins out-of-sample) has w -> 1, logit > 0, hence a LOW pbo.
+    pbo = float((logits < 0).mean())
     return {"pbo": pbo, "n_combos": len(logits),
             "interpretation": ("overfitting likely" if pbo > 0.5 else "selection looks robust")}

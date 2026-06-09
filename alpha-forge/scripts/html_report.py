@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import html as _html
 import json as _json
 
 _CSS = r"""
@@ -20,7 +21,9 @@ _CSS = r"""
    Light, restrained, print-first. All figures tabular & monospaced.
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+/* Fonts: system stacks only (see :root --serif/--sans/--mono). No remote @import, so the
+   report is truly self-contained and renders the SAME offline / in a sandboxed preview —
+   a remote webfont fails to load there and flashes a thin, washed-out title. */
 
 :root{
   --paper:#f4f2ec;
@@ -77,7 +80,7 @@ body{
 
 /* ===== Masthead =========================================================== */
 .masthead{padding:30px 40px 22px;border-bottom:2.5px solid var(--rule);position:relative}
-.masthead .kicker{display:flex;align-items:center;gap:10px;margin-bottom:13px;
+.masthead .kicker{display:flex;align-items:center;gap:10px;margin-bottom:13px;padding-right:150px;
   font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
 .masthead .kicker .mark{font-family:var(--serif);font-weight:700;letter-spacing:.04em;
   color:var(--accent);text-transform:none;font-size:13px;white-space:nowrap}
@@ -85,13 +88,13 @@ body{
 .type-badge{font-family:var(--sans);font-weight:600;font-size:10.5px;letter-spacing:.1em;
   text-transform:uppercase;color:#fff;background:var(--accent);padding:3px 9px;border-radius:2px}
 .masthead h1{font-family:var(--serif);font-weight:600;font-size:34px;line-height:1.12;
-  letter-spacing:-.01em;margin:0 0 6px}
+  letter-spacing:-.01em;margin:0 0 6px;max-width:calc(100% - 150px)}
 .masthead .subtitle{font-family:var(--serif);font-size:18px;color:var(--ink-soft);font-weight:400;margin:0}
 .masthead .metaline{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:16px;
   font-size:12px;color:var(--muted)}
 .masthead .metaline b{color:var(--ink-soft);font-weight:600}
 .masthead .metaline .num{font-size:12px}
-.masthead .stamp{position:absolute;top:30px;right:40px;text-align:right}
+.masthead .stamp{position:absolute;top:30px;right:40px;text-align:right;background:var(--card);padding-left:14px;z-index:2}
 .masthead .stamp .d{font-family:var(--mono);font-size:20px;font-weight:500;color:var(--ink)}
 .masthead .stamp .wd{font-size:11.5px;color:var(--muted);margin-top:2px}
 
@@ -327,7 +330,8 @@ table.grid .flagcell{color:var(--flag);font-weight:600}
 @media(max-width:760px){
   .sheet{margin:0;border:none}
   .masthead,.body,.footer{padding-left:20px;padding-right:20px}
-  .masthead h1{font-size:26px} .masthead .stamp{position:static;text-align:left;margin-top:12px}
+  .masthead h1{font-size:26px;max-width:none} .masthead .kicker{padding-right:0}
+  .masthead .stamp{position:static;text-align:left;margin-top:12px;background:none;padding-left:0}
   .env-grid{grid-template-columns:1fr}
   .verdict{grid-template-columns:1fr}.verdict .stance{border-right:none;border-bottom:1px solid var(--hair-2);flex-direction:row;gap:14px}
   .ladder-foot{grid-template-columns:repeat(2,1fr)}
@@ -851,7 +855,7 @@ def render(report: dict) -> str:
     return (
         '<!DOCTYPE html>\n<html lang="zh-CN"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        '<title>' + _title(report) + '</title>\n<style>\n' + _CSS + '\n</style></head>\n'
+        '<title>' + _html.escape(_title(report)) + '</title>\n<style>\n' + _CSS + '\n</style></head>\n'
         '<body>\n<div class="sheet" id="sheet"></div>\n'
         '<script id="report-data" type="application/json">' + data + '</script>\n'
         '<script>\n' + _JS + '\n</script>\n'

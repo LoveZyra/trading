@@ -101,7 +101,8 @@ Ready-made templates live in `scripts/strategies/` (registry keys in parentheses
 - **Trend / 趋势**: `MACrossover` (ma_crossover), `Breakout` (breakout, Donchian),
   `TimeSeriesMomentum` (ts_momentum), `MACDTrend` (macd_trend)
 - **Mean reversion / 均值回归**: `ZScoreReversion`, `BollingerReversion`,
-  `RSIReversion`, `PairsTrading` (cointegration spread)
+  `RSIReversion`, `PairsTrading` (cointegration spread — import-only: it needs a partner
+  price series, so it has no registry key / `--strategy` slug; use it via direct import)
 - **Multi-factor / 多因子选股**: `multi_factor.multi_factor_signal(...)` blends price,
   fundamental and news factors (see 2b).
 
@@ -227,8 +228,9 @@ print(result.stats)                  # full metrics dict
 bench = bt.buy_and_hold(df)          # ALWAYS compare against this
 ```
 
-`result.stats` carries total return, CAGR, Sharpe, Sortino, max drawdown, Calmar,
-win rate, profit factor, exposure, turnover and trade count. The engine shifts the
+`result.stats` carries `total_return`, `cagr`, `ann_volatility`, `sharpe`, `sortino`,
+`max_drawdown`, `calmar`, `win_rate`, `profit_factor`, `exposure`, `turnover_annual`,
+`n_trades` and `total_costs` (those are the exact dict keys). The engine shifts the
 signal by one bar (`lag=1`) so you can never trade on information you didn't have.
 
 For a multi-asset weight panel use `bt.backtest_portfolio(panel_close, weights)`.
@@ -271,30 +273,16 @@ markdown 再转 HTML——直接构造一个 **结构化 report dict** 交给 `s
 ```python
 from scripts import html_report as H
 
-report = {
-    "meta": {"title": "美股盘后复盘", "subtitle": "MU · 美光科技",
-             "report_type": "single", "date": "2026-06-09", "market": "美股",
-             "data_source": "IBKR 5年日线（延迟900s）", "tag": "机械量化参考 · 非投资建议"},
-    "verdict": {"stance": "偏多 · 不追高", "action": "等回调 <b>860–915</b> 分批…", "summary": "…"},
-    "alerts": [{"level": "high", "symbol": "MU", "signal": "long",
-                "headline": "…", "detail": "…", "action": "…"}],
-    "regime": {...}, "macro": {...}, "calendar": [...],          # 三件套
-    "technical": {"level": {"price": 949.3, "buy_low": 860, "buy_high": 915,
-                            "stop": 751, "target": 1089, "rr": 1.48}, "stats": [...]},
-    "levels": [{"symbol": "GOOG", "price": 361.2, "signal": "long",
-                "buy_low": 355, "buy_high": 356, "stop": 336.7, "target": 404.4,
-                "rr": 2.52, "rsi": 44, "note": "…"}],            # 组合/自选池：买卖点大表
-    "backtest": {"strategy_label": "时序动量", "equity": {"strategy": [...], "benchmark": [...]}},
-    "sentiment": {...}, "portfolio_health": {...}, "disclaimer": "…",
-}
+report = {"meta": {...}, "verdict": {...}, "levels": [...], "backtest": {...}, ...}
 H.save_html(report, "trading/reports/美股复盘_2026-06-09.html")   # -> 单文件 .html
 html = H.render(report)                                          # 或直接拿字符串
 ```
 
-> 三类报告同一套模板：`report_type` 取 `single`（个股）/`portfolio`（组合自选池）/
-> `market`（市场扫描）/`backtest`（回测）。`scripts.report` 仍可生成 markdown 草稿
-> 留痕，但**最终展示走上面的 dict**——版式稳定、买卖点层级清晰，不再有 markdown
-> 表格错位 / 内联 span 渲染差的问题。
+> **每个 key 的完整形状、配色与打印设置都在同级 `SCHEMA.md` ——构造 report dict 前先读它**
+> （那里有逐字段的契约与示例，本处不再重复）。同一套模板按 `report_type` 切换：`single`
+> （个股）/`portfolio`（组合自选池）/`market`（市场扫描）/`backtest`（回测）/`attribution`/
+> `macro`。`scripts.report` 仍可生成 markdown 草稿留痕，但**最终展示走上面的 dict**——版式
+> 稳定、买卖点层级清晰，不再有 markdown 表格错位 / 内联 span 渲染差的问题。
 
 Or do steps 1–5 from the command line:
 

@@ -134,7 +134,10 @@ def backtest_portfolio(panel_close: pd.DataFrame,
     aggregated. The 'position' on the result is gross exposure (sum |w|).
     """
     panel_close = panel_close.sort_index()
-    weights = weights.reindex_like(panel_close).fillna(0.0)
+    # ffill so a rebalance-only weight panel (rows only on rebalance dates, NaN between)
+    # HOLDS its positions until the next rebalance instead of silently going flat. Dense
+    # per-bar panels are unaffected (no gaps to fill); leading NaNs -> 0.0 (start flat).
+    weights = weights.reindex_like(panel_close).ffill().fillna(0.0)
 
     asset_ret = panel_close.pct_change().fillna(0.0)
     held = weights.shift(lag).fillna(0.0)

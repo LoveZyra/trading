@@ -50,30 +50,43 @@ def markdown_report(result, *, name: str = "Strategy", benchmark=None,
         lines.append("")
 
     s = result.stats
+
+    def cell(d, key, spec):
+        """Format d[key] with `spec`, or '—' if the metric is missing/NaN. Keeps the
+        report honest about absent metrics instead of crashing (KeyError) or printing
+        'nan%' — matching the skill's render-if-present contract."""
+        v = d.get(key)
+        if v is None or (isinstance(v, float) and v != v):
+            return "—"
+        try:
+            return format(v, spec)
+        except (ValueError, TypeError):
+            return str(v)
+
     rows = [
-        ("Total return", f"{s['total_return']:+.2%}"),
-        ("CAGR", f"{s['cagr']:+.2%}"),
-        ("Ann. volatility", f"{s['ann_volatility']:.2%}"),
-        ("Sharpe", f"{s['sharpe']:.2f}"),
-        ("Sortino", f"{s['sortino']:.2f}"),
-        ("Max drawdown", f"{s['max_drawdown']:.2%}"),
-        ("Calmar", f"{s['calmar']:.2f}"),
-        ("Win rate", f"{s['win_rate']:.2%}"),
-        ("Profit factor", f"{s['profit_factor']:.2f}"),
-        ("Trades", s.get("n_trades", "—")),
-        ("Exposure", f"{s.get('exposure', float('nan')):.2%}"),
+        ("Total return", cell(s, "total_return", "+.2%")),
+        ("CAGR", cell(s, "cagr", "+.2%")),
+        ("Ann. volatility", cell(s, "ann_volatility", ".2%")),
+        ("Sharpe", cell(s, "sharpe", ".2f")),
+        ("Sortino", cell(s, "sortino", ".2f")),
+        ("Max drawdown", cell(s, "max_drawdown", ".2%")),
+        ("Calmar", cell(s, "calmar", ".2f")),
+        ("Win rate", cell(s, "win_rate", ".2%")),
+        ("Profit factor", cell(s, "profit_factor", ".2f")),
+        ("Trades", cell(s, "n_trades", ",d")),
+        ("Exposure", cell(s, "exposure", ".2%")),
     ]
     lines.append("| Metric | Strategy |" + (" Buy & Hold |" if benchmark else ""))
     lines.append("|---|---|" + ("---|" if benchmark else ""))
     bench = benchmark.stats if benchmark else {}
     bmap = {
-        "Total return": f"{bench.get('total_return', 0):+.2%}",
-        "CAGR": f"{bench.get('cagr', 0):+.2%}",
-        "Ann. volatility": f"{bench.get('ann_volatility', 0):.2%}",
-        "Sharpe": f"{bench.get('sharpe', 0):.2f}",
-        "Sortino": f"{bench.get('sortino', 0):.2f}",
-        "Max drawdown": f"{bench.get('max_drawdown', 0):.2%}",
-        "Calmar": f"{bench.get('calmar', 0):.2f}",
+        "Total return": cell(bench, "total_return", "+.2%"),
+        "CAGR": cell(bench, "cagr", "+.2%"),
+        "Ann. volatility": cell(bench, "ann_volatility", ".2%"),
+        "Sharpe": cell(bench, "sharpe", ".2f"),
+        "Sortino": cell(bench, "sortino", ".2f"),
+        "Max drawdown": cell(bench, "max_drawdown", ".2%"),
+        "Calmar": cell(bench, "calmar", ".2f"),
     }
     for label, val in rows:
         bcell = f" {bmap.get(label, '—')} |" if benchmark else ""

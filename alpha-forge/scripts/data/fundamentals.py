@@ -23,6 +23,11 @@ Canonical fields (all optional, float unless noted)
   earnings_growth   : YoY earnings growth     (higher = better) [growth]
   as_of             : ISO date the snapshot reflects
 
+All ratio / margin / growth fields are stored as FRACTIONS (0.25 means 25%), normalized
+across sources: yfinance is already fractional; akshare's (%) values and yfinance's
+percent-scaled debtToEquity are divided by 100 on the way in, so a mixed-market panel
+z-scores on one consistent scale (otherwise A-share names, at ~100x, swamp every factor).
+
 See references/fundamentals_news.md for source quirks and the Web-search hand-off.
 """
 from __future__ import annotations
@@ -87,6 +92,10 @@ def from_yfinance(symbol: str) -> dict:
         earnings_growth=_f(info.get("earningsGrowth")),
         as_of=pd.Timestamp.today().strftime("%Y-%m-%d"),
     )
+    # yfinance reports debtToEquity as a percent (e.g. 150.0 = 1.5x); store a fraction so it
+    # matches akshare's (converted) 资产负债率 and the fraction convention documented above.
+    if out["debt_to_equity"] is not None:
+        out["debt_to_equity"] /= 100.0
     return out
 
 
@@ -124,12 +133,18 @@ def from_akshare(symbol: str, market: str = "cn") -> dict:
                         return _f(row[n])
                 return None
 
-            out["roe"] = g("净资产收益率(%)", "加权净资产收益率(%)")
-            out["gross_margin"] = g("销售毛利率(%)")
-            out["net_margin"] = g("销售净利率(%)")
-            out["debt_to_equity"] = g("资产负债率(%)")
-            out["revenue_growth"] = g("主营业务收入增长率(%)", "营业收入增长率(%)")
-            out["earnings_growth"] = g("净利润增长率(%)")
+            def gp(*names):
+                """Like g() but converts a percent (25.0) to a fraction (0.25), so akshare
+                ratios share yfinance's scale. A mixed-source panel z-scores consistently."""
+                v = g(*names)
+                return v / 100.0 if v is not None else None
+
+            out["roe"] = gp("净资产收益率(%)", "加权净资产收益率(%)")
+            out["gross_margin"] = gp("销售毛利率(%)")
+            out["net_margin"] = gp("销售净利率(%)")
+            out["debt_to_equity"] = gp("资产负债率(%)")
+            out["revenue_growth"] = gp("主营业务收入增长率(%)", "营业收入增长率(%)")
+            out["earnings_growth"] = gp("净利润增长率(%)")
     except Exception:  # noqa: BLE001
         pass
     return out

@@ -56,8 +56,11 @@ def load_pit_fundamentals(base: str = DEFAULT_BASE) -> dict:
     out = {}
     if p.exists():
         for f in sorted(p.glob("*.json")):
-            df = pd.read_json(f)
+            df = pd.read_json(f, dtype={"symbol": str})
             if "symbol" in df.columns:
+                # Keep leading zeros on A-share / HK codes (000063, 00700): never let the
+                # symbol be parsed as an int, or the join to string tickers silently fails.
+                df["symbol"] = df["symbol"].astype(str)
                 df = df.set_index("symbol")
             out[pd.Timestamp(f.stem)] = df
     return out
