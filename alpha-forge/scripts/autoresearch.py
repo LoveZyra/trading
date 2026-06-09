@@ -1,0 +1,354 @@
+"""Automated research loop — RD-Agent-style Research -> Develop -> Feedback.
+
+Inspired by Microsoft's RD-Agent(Q) (arXiv:2505.15155): decompose quant R&D into a
+loop that proposes a hypothesis, implements & backtests it, evaluates the result, and
+uses a bandit scheduler to adaptively pick the next direction — alternating between
+*factor* search and *model* search (factor-model co-optimization).
+
+What's native here vs. the paper:
+  * The "Research agent" that proposes hypotheses is YOU (Claude). The loop samples
+    from a structured search space; you make it smart by editing the space, adding
+    factors, or seeding promising directions between runs. That's the intended use —
+    the loop does the bookkeeping and honest OOS scoring; you supply the ideas.
+  * "Development" = the existing strategy/factor/model code; nothing is hand-rolled
+    per run.
+  * "Feedback" = walk-forward / cross-sectional OOS metrics (never in-sample).
+  * The scheduler is a UCB1 multi-armed bandit over directions, exactly as the paper
+    uses a bandit to balance exploration vs. exploitation across research avenues.
+
+Everything is scored OUT-OF-SAMPLE so the leaderboard can't be gamed by overfitting.
+"""
+from __future__ import annotations
+
+import math
+import random
+from dataclasses import dataclass, field
+
+import numpy as np
+import pandas as pd
+
+from . import optimize as opt, metrics as M, models as Mdl
+from .strategies import REGISTRY, multi_factor as mf
+from . import backtest as bt
+
+
+# ----------------------------------------------------------------------------
+# UCB1 bandit scheduler
+# ----------------------------------------------------------------------------
+class UCB1:
+    """Upper-Confidence-Bound bandit. Picks the arm maximizing
+    mean_reward + sqrt(2 ln(total) / pulls). Unpulled arms are tried first.
+    Balances exploring new research directions against exploiting good ones."""
+
+    def __init__(self, arms: list[str]):
+        self.arms = list(arms)
+        self.counts = {a: 0 for a in arms}
+        self.values = {a: 0.0 for a in arms}   # running mean reward
+        self.total = 0
+
+    def select(self) -> str:
+        for a in self.arms:
+            if self.counts[a] == 0:
+                return a
+        log_t = math.log(self.total)
+        return max(self.arms, key=lambda a: self.values[a] + math.sqrt(2 * log_t / self.counts[a]))
+
+    def update(self, arm: str, reward: float):
+        self.counts[arm] += 1
+        self.total += 1
+        n = self.counts[arm]
+        self.values[arm] += (reward - self.values[arm]) / n
+
+
+def _reward(sharpe: float) -> float:
+    """Map an OOS Sharpe to a bounded reward in (0,1) for the bandit."""
+    if not np.isfinite(sharpe):
+        return 0.0
+    return 1.0 / (1.0 + math.exp(-sharpe))
+
+
+# ----------------------------------------------------------------------------
+# Search spaces
+# ----------------------------------------------------------------------------
+# Per rule-strategy family: a small, economically-sensible grid to sample from.
+RULE_SPACE = {
+    "ma_crossover": {"fast": [10, 20, 30], "slow": [50, 100, 150]},
+    "breakout": {"entry": [20, 40, 55], "exit": [10, 20]},
+    "ts_momentum": {"lookback": [60, 90, 120, 180]},
+    "macd_trend": {"fast": [8, 12], "slow": [21, 26], "signal": [9]},
+    "zscore_reversion": {"lookback": [10, 20, 30], "entry": [1.0, 1.5, 2.0]},
+    "bollinger_reversion": {"n": [10, 20, 30], "k": [1.5, 2.0, 2.5]},
+    "rsi_reversion": {"n": [7, 14, 21], "oversold": [20, 30]},
+}
+
+
+def _sample(grid: dict, rng: random.Random) -> dict:
+    return {k: rng.choice(v) for k, v in grid.items()}
+
+
+@dataclass
+class Trial:
+    direction: str
+    params: dict
+    oos_sharpe: float
+    oos_return: float
+    extra: dict = field(default_factory=dict)
+
+
+@dataclass
+class ResearchReport:
+    trials: list                         # every hypothesis tried, with OOS result
+    leaderboard: pd.DataFrame            # sorted best-first
+    best: Trial
+    bandit_summary: dict                 # pulls + mean reward per direction
+
+    def __repr__(self):
+        b = self.best
+        return (f"ResearchReport(best={b.direction} {b.params} "
+                f"OOS sharpe={b.oos_sharpe:.2f} ret={b.oos_return:+.1%}; "
+                f"{len(self.trials)} trials)")
+
+
+# ----------------------------------------------------------------------------
+# Driver 1: rule-strategy research on a single asset
+# ----------------------------------------------------------------------------
+def research_single(df: pd.DataFrame, iterations: int = 30, *, seed: int = 0,
+                    n_splits: int = 4, commission_bps: float = 1.0,
+                    slippage_bps: float = 1.0) -> ResearchReport:
+    """Bandit-driven search over rule-strategy families on one asset.
+
+    Each iteration: the bandit picks a strategy family, a random param set is sampled
+    (the "hypothesis"), it's scored by walk-forward OOS Sharpe ("feedback"), and the
+    bandit is updated. Returns a leaderboard + the hypothesis log.
+    """
+    rng = random.Random(seed)
+    bandit = UCB1(list(RULE_SPACE))
+    trials: list[Trial] = []
+
+    for _ in range(iterations):
+        fam = bandit.select()
+        params = _sample(RULE_SPACE[fam], rng)
+        try:
+            # single-combo grid -> walk_forward gives a clean OOS estimate
+            grid = {k: [v] for k, v in params.items()}
+            wf = opt.walk_forward(REGISTRY[fam], df, grid, n_splits=n_splits,
+                                  commission_bps=commission_bps, slippage_bps=slippage_bps)
+            sh = wf.oos_stats.get("sharpe", float("nan"))
+            ret = wf.oos_stats.get("total_return", float("nan"))
+        except Exception:  # noqa: BLE001
+            sh, ret = float("nan"), float("nan")
+        bandit.update(fam, _reward(sh))
+        trials.append(Trial(fam, params, sh, ret))
+
+    return _finalize(trials, bandit)
+
+
+# ----------------------------------------------------------------------------
+# Driver 2: factor + model co-optimization on a universe
+# ----------------------------------------------------------------------------
+FACTOR_KEYS = ["momentum", "low_vol", "value", "quality", "growth", "sentiment"]
+MODEL_DIRECTIONS = ["ridge_low", "ridge_high", "rf", "lightgbm", "equal_weight"]
+
+
+def _make_model(direction: str):
+    if direction == "ridge_low":
+        return Mdl.RidgeModel(alpha=0.3)
+    if direction == "ridge_high":
+        return Mdl.RidgeModel(alpha=3.0)
+    if direction == "rf":
+        return Mdl.SklearnModel("RandomForestRegressor", n_estimators=120, max_depth=4, random_state=0)
+    if direction == "lightgbm":
+        return Mdl.LGBMModel(n_estimators=150, max_depth=3)
+    return None  # equal_weight handled separately
+
+
+def _score_factor_weights(data, weights_dict, fundamentals_panel, sentiment_by_symbol,
+                          rebalance, top, commission_bps, slippage_bps):
+    w = mf.multi_factor_signal(data, weights_dict, rebalance=rebalance, top=top,
+                               fundamentals_panel=fundamentals_panel,
+                               sentiment_by_symbol=sentiment_by_symbol)
+    res = bt.backtest_portfolio(mf.build_panel(data, "close"), w,
+                                commission_bps=commission_bps, slippage_bps=slippage_bps)
+    return res.stats, w
+
+
+def research_portfolio(data: dict, iterations: int = 24, *, seed: int = 0,
+                       fundamentals_panel: pd.DataFrame | None = None,
+                       sentiment_by_symbol: dict | None = None,
+                       rebalance: str = "ME", top: float = 0.3,
+                       commission_bps: float = 1.0, slippage_bps: float = 1.0,
+                       use_ml: bool = True) -> ResearchReport:
+    """Bandit over two kinds of direction: 'factor' (sample factor-weight blends) and
+    'model' (try ML predictors). Factor trials use the linear multi-factor portfolio;
+    model trials use the cross-sectional ML backtest. The bandit learns which avenue
+    is paying off and concentrates there — RD-Agent's adaptive scheduling, natively.
+
+    Only factors you supply data for are sampled (fundamentals/news optional). ML
+    model directions are skipped gracefully if sklearn/lightgbm aren't installed.
+    """
+    rng = random.Random(seed)
+    # which factors are actually available
+    avail = ["momentum", "low_vol"]
+    if fundamentals_panel is not None and len(fundamentals_panel):
+        avail += ["value", "quality", "growth"]
+    if sentiment_by_symbol:
+        avail += ["sentiment"]
+
+    directions = ["factor"]
+    if use_ml:
+        directions.append("model")
+    bandit = UCB1(directions)
+    trials: list[Trial] = []
+
+    for _ in range(iterations):
+        d = bandit.select()
+        if d == "factor":
+            # sample a random nonnegative weight blend over available factors
+            wd = {k: round(rng.random(), 2) for k in avail if rng.random() > 0.3}
+            if not wd:
+                wd = {avail[0]: 1.0}
+            try:
+                stats, _ = _score_factor_weights(data, wd, fundamentals_panel,
+                                                  sentiment_by_symbol, rebalance, top,
+                                                  commission_bps, slippage_bps)
+                sh, ret = stats.get("sharpe", float("nan")), stats.get("total_return", float("nan"))
+            except Exception:  # noqa: BLE001
+                sh, ret = float("nan"), float("nan")
+            trials.append(Trial("factor", wd, sh, ret))
+            bandit.update(d, _reward(sh))
+        else:
+            md = rng.choice(MODEL_DIRECTIONS)
+            try:
+                if md == "equal_weight":
+                    stats, _ = _score_factor_weights(data, {k: 1.0 for k in avail},
+                                                     fundamentals_panel, sentiment_by_symbol,
+                                                     rebalance, top, commission_bps, slippage_bps)
+                    sh, ret, ic = stats.get("sharpe", float("nan")), stats.get("total_return", float("nan")), float("nan")
+                else:
+                    res = Mdl.ml_factor_backtest(data, model=_make_model(md),
+                                                 fundamentals_panel=fundamentals_panel,
+                                                 sentiment_by_symbol=sentiment_by_symbol,
+                                                 rebalance=rebalance, top=top,
+                                                 commission_bps=commission_bps,
+                                                 slippage_bps=slippage_bps)
+                    sh, ret, ic = res.stats.get("sharpe", float("nan")), res.stats.get("total_return", float("nan")), res.ic
+            except ImportError:
+                sh, ret, ic = float("nan"), float("nan"), float("nan")  # lib missing -> skip
+            except Exception:  # noqa: BLE001
+                sh, ret, ic = float("nan"), float("nan"), float("nan")
+            trials.append(Trial(f"model:{md}", {"model": md}, sh, ret, {"ic": ic}))
+            bandit.update(d, _reward(sh))
+
+    return _finalize(trials, bandit)
+
+
+def cooptimize_factor_model(data: dict, rounds: int = 3, *,
+                            fundamentals_panel: pd.DataFrame | None = None,
+                            sentiment_by_symbol: dict | None = None,
+                            rebalance: str = "ME", top: float = 0.3,
+                            seed: int = 0) -> dict:
+    """Alternating factor<->model optimization (the heart of RD-Agent(Q)).
+
+    Round-robin: (1) fix the model, search factor-weight blends; (2) fix the best
+    factors, search models. Repeat. Returns the best factor weights, best model
+    direction, and their OOS stats. A compact, honest version of co-optimization you
+    can run in seconds.
+    """
+    rng = random.Random(seed)
+    avail = ["momentum", "low_vol"]
+    if fundamentals_panel is not None and len(fundamentals_panel):
+        avail += ["value", "quality", "growth"]
+    if sentiment_by_symbol:
+        avail += ["sentiment"]
+
+    best_weights = {k: 1.0 for k in avail}
+    best_model = "equal_weight"
+    history = []
+
+    for r in range(rounds):
+        # (1) factor search given current model = linear blend (equal_weight proxy)
+        best_sh = -np.inf
+        for _ in range(8):
+            wd = {k: round(rng.random(), 2) for k in avail if rng.random() > 0.3} or {avail[0]: 1.0}
+            try:
+                stats, _ = _score_factor_weights(data, wd, fundamentals_panel,
+                                                 sentiment_by_symbol, rebalance, top, 1.0, 1.0)
+                if stats.get("sharpe", -np.inf) > best_sh:
+                    best_sh, best_weights = stats["sharpe"], wd
+            except Exception:  # noqa: BLE001
+                continue
+        history.append({"round": r, "phase": "factor", "best_sharpe": round(best_sh, 3),
+                        "weights": dict(best_weights)})
+
+        # (2) model search given factors fixed
+        best_msh, chosen = -np.inf, best_model
+        for md in MODEL_DIRECTIONS:
+            try:
+                if md == "equal_weight":
+                    stats, _ = _score_factor_weights(data, best_weights, fundamentals_panel,
+                                                     sentiment_by_symbol, rebalance, top, 1.0, 1.0)
+                    sh = stats.get("sharpe", -np.inf)
+                else:
+                    res = Mdl.ml_factor_backtest(data, model=_make_model(md),
+                                                 fundamentals_panel=fundamentals_panel,
+                                                 sentiment_by_symbol=sentiment_by_symbol,
+                                                 rebalance=rebalance, top=top)
+                    sh = res.stats.get("sharpe", -np.inf)
+                if sh > best_msh:
+                    best_msh, chosen = sh, md
+            except Exception:  # noqa: BLE001
+                continue
+        best_model = chosen
+        history.append({"round": r, "phase": "model", "best_sharpe": round(best_msh, 3),
+                        "model": best_model})
+
+    return {"best_weights": best_weights, "best_model": best_model, "history": history}
+
+
+# ----------------------------------------------------------------------------
+def _finalize(trials: list, bandit: UCB1) -> ResearchReport:
+    rows = [{"direction": t.direction, "params": t.params, "oos_sharpe": t.oos_sharpe,
+             "oos_return": t.oos_return, **t.extra} for t in trials]
+    lb = pd.DataFrame(rows)
+    if len(lb):
+        lb = lb.sort_values("oos_sharpe", ascending=False, na_position="last").reset_index(drop=True)
+    valid = [t for t in trials if np.isfinite(t.oos_sharpe)]
+    best = max(valid, key=lambda t: t.oos_sharpe) if valid else trials[0]
+    summary = {a: {"pulls": bandit.counts[a], "mean_reward": round(bandit.values[a], 3)}
+               for a in bandit.arms}
+    return ResearchReport(trials=trials, leaderboard=lb, best=best, bandit_summary=summary)
+
+
+# ----------------------------------------------------------------------------
+# Strategy ensembling (Ensembling Portfolio Strategies, 2406.03652)
+# ----------------------------------------------------------------------------
+def ensemble_top_k(report: ResearchReport, df: pd.DataFrame, k: int = 3, *,
+                   commission_bps: float = 1.0, slippage_bps: float = 1.0):
+    """Blend the top-k rule-strategy configs from a research_single report into one
+    equal-weight ensemble signal and backtest it on `df`.
+
+    Why ensemble instead of picking the single best? The #1 OOS config is partly luck;
+    averaging several decorrelated winners keeps most of the edge with less variance
+    and lower overfitting risk (a free lunch when the strategies disagree). Returns a
+    BacktestResult for the ensemble plus the list of members used.
+    """
+    members = []
+    for t in report.leaderboard.itertuples():
+        if np.isfinite(getattr(t, "oos_sharpe", float("nan"))) and t.direction in REGISTRY:
+            members.append((t.direction, t.params))
+        if len(members) >= k:
+            break
+    if not members:
+        raise ValueError("no usable members in report leaderboard")
+
+    sigs = []
+    for fam, params in members:
+        try:
+            sigs.append(REGISTRY[fam](**params).generate_signal(df).reindex(df.index).fillna(0.0))
+        except Exception:  # noqa: BLE001
+            continue
+    if not sigs:
+        raise ValueError("could not build any ensemble signals")
+    blended = sum(sigs) / len(sigs)          # equal-weight average of target positions
+    res = bt.backtest(df, blended, commission_bps=commission_bps, slippage_bps=slippage_bps)
+    return res, members

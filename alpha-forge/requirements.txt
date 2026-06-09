@@ -1,0 +1,11 @@
+pandas>=2.0
+numpy>=1.24
+matplotlib>=3.6
+pyarrow>=12.0
+# data sources (pick per market):
+yfinance>=0.2.40   # US & global prices, fundamentals, news
+akshare>=1.12      # China A-share & HK prices, fundamentals, 东方财富 news
+pykrx>=1.0         # Korea
+# optional ML model layer (random forest / gradient boosting); ridge needs neither:
+scikit-learn>=1.3  # optional
+lightgbm>=4.0      # optional

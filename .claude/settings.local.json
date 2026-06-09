@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Rename-Item -Path \"d:\\\\MyConfiguration\\\\tianji.chang\\\\Desktop\\\\trading\\\\TradingAgents-CN-v2\" -NewName \"TradingMind\")"
+    ]
+  }
+}
