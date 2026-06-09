@@ -1,0 +1,135 @@
+alpha-forge/scripts/data/base.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-89
+alpha-forge/scripts/strategies/trend.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-101
+alpha-forge/scripts/models.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-308
+alpha-forge/scripts/factor_lab.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-186
+alpha-forge/scripts/signal_tracker.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-98
+alpha-forge/scripts/strategies/base.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-36
+alpha-forge/references/data_sources.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-120
+alpha-forge/scripts/data/fundamentals.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-172
+alpha-forge/scripts/regime.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-145
+alpha-forge/scripts/data/options.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-71
+alpha-forge/SKILL.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-300
+alpha-forge/scripts/metrics.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-131
+alpha-forge/scripts/execution.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-80
+watchlist_us.txt
+  s_220cd7685167fa::t_8d5b2272b4f190 1-31
+alpha-forge/scripts/data/__init__.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-7
+alpha-forge/references/fundamentals_news.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-282
+alpha-forge/scripts/data/ibkr.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-51
+alpha-forge/scripts/data/free.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-79
+alpha-forge/scripts/data/sectors.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-92
+reports/INTC分析_2026-06-09.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-67
+alpha-forge/scripts/strategies/multi_factor.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-172
+watchlist_jp.txt
+  s_220cd7685167fa::t_8d5b2272b4f190 1
+alpha-forge/references/strategies.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-86
+alpha-forge/scripts/strategies/mean_reversion.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-106
+alpha-forge/scripts/optimize.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-147
+alpha-forge/references/pitfalls.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-89
+alpha-forge/scripts/strategies/__init__.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-22
+alpha-forge/examples/quickstart.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-76
+alpha-forge/scripts/data/altdata.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-42
+alpha-forge/scripts/run_backtest.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-133
+alpha-forge/scripts/indicators.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-114
+alpha-forge/scripts/attribution.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-65
+.gitignore
+  s_220cd7685167fa::t_8d5b2272b4f190 1-7
+alpha-forge/scripts/data/loader.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-72
+alpha-forge/scripts/data/market.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-114
+alpha-forge/requirements.txt
+  s_220cd7685167fa::t_8d5b2272b4f190 1-11
+alpha-forge/scripts/data/microstructure.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-61
+alpha-forge/references/autoresearch.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-147
+alpha-forge/scripts/autoresearch.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-354
+reports/美股复盘_样板_MU_2026-06-09.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-54
+alpha-forge/scripts/report.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-81
+alpha-forge/scripts/validation.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-157
+alpha-forge/scripts/data/pit.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-84
+alpha-forge/scripts/levels.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-113
+alpha-forge/references/optimization_roadmap.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-71
+.claude/settings.local.json
+  s_220cd7685167fa::t_8d5b2272b4f190 1-7
+alpha-forge/scripts/backtest.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-168
+watchlist_cn.txt
+  s_220cd7685167fa::t_8d5b2272b4f190 1-15
+alpha-forge/scripts/data/macro.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-198
+alpha-forge/references/factor_extraction.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-76
+alpha-forge/scripts/data/sentiment.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-238
+watchlist_kr.txt
+  s_220cd7685167fa::t_8d5b2272b4f190 1-3
+alpha-forge/scripts/__init__.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1
+alpha-forge/scripts/sizing.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-99
+alpha-forge/scripts/data/news.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-114
+alpha-forge/references/research_roadmap.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-37
+alpha-forge/examples/output/report.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-17
+alpha-forge/scripts/portfolio.py
+  s_220cd7685167fa::t_8d5b2272b4f190 1-200
+reports/自选股观察池_2026-06-09.md
+  s_220cd7685167fa::t_8d5b2272b4f190 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "8de2839d7382578795bba2ea9d66ffd4cadd6a1e",
+  "prompts": {},
+  "sessions": {
+    "s_220cd7685167fa": {
+      "agent_id": {
+        "tool": "mock_ai",
+        "id": "ai-thread-1780991715219739300",
+        "model": "unknown"
+      },
+      "human_author": "ctj <tianji.chang@ly.com>"
+    }
+  }
+}
