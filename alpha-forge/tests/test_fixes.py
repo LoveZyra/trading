@@ -333,10 +333,6 @@ def test_grid_search_drawdown_sorted_best_first():
 
 def test_walk_forward_train_frac_semantics():
     """train_frac=0.6 must yield a train window ~60% of train+test (was 71%)."""
-    from scripts import optimize as opt
-    captured = {}
-    orig = opt.backtest
-
     n, n_splits, train_frac = 350, 5, 0.6
     fold = n // (n_splits + 1)
     expected = int(fold * train_frac / (1 - train_frac))
