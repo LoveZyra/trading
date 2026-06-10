@@ -24,12 +24,14 @@ class ZScoreReversion(Strategy):
 
     def generate_signal(self, df: pd.DataFrame) -> pd.Series:
         z = ind.zscore(df["close"], self.lookback)
-        # Long and short legs as separate entry/exit state machines (the masks
-        # |z|<=exit, z<=-entry, z>=entry are disjoint, but the helper keeps the
-        # pattern uniform across all reversion strategies).
-        pos = positions_from_signals(z <= -self.entry, z.abs() <= self.exit, 1.0)
+        # Long and short legs as separate entry/exit state machines. Exits are
+        # ONE-SIDED (long exits once z recovers to >= -exit, short once z falls to
+        # <= +exit) rather than |z|<=exit: a gap straight from one extreme to the
+        # other then closes the old leg on the same bar the new one opens, instead
+        # of leaving both legs alive and netting the position to 0.
+        pos = positions_from_signals(z <= -self.entry, z >= -self.exit, 1.0)
         if self.allow_short:
-            pos = pos + positions_from_signals(z >= self.entry, z.abs() <= self.exit, -1.0)
+            pos = pos + positions_from_signals(z >= self.entry, z <= self.exit, -1.0)
         return pos
 
 
@@ -107,6 +109,8 @@ class PairsTrading(Strategy):
     def generate_signal(self, df: pd.DataFrame) -> pd.Series:
         b = self._partner.reindex(df.index).ffill()
         _, z = pair_spread(df["close"], b, self.lookback)
-        pos = positions_from_signals(z <= -self.entry, z.abs() <= self.exit, 1.0)
-        pos = pos + positions_from_signals(z >= self.entry, z.abs() <= self.exit, -1.0)
+        # One-sided exits per leg (see ZScoreReversion): a gap across the band
+        # flips the position instead of netting to 0.
+        pos = positions_from_signals(z <= -self.entry, z >= -self.exit, 1.0)
+        pos = pos + positions_from_signals(z >= self.entry, z <= self.exit, -1.0)
         return pos

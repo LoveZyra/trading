@@ -307,3 +307,14 @@ def test_sector_map_external_json(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     S._autoload_external()
     assert S.sector_of("ZZZZ9") == "test_sector"
+
+
+def test_zscore_gap_flips_instead_of_netting_zero():
+    """A gap straight from the short extreme to the long extreme must flip the
+    position to +1 (close short, open long), not net the two legs to 0."""
+    from scripts.strategies.mean_reversion import ZScoreReversion
+    vals = [100.0] * 30 + [110.0] * 5 + [80.0] * 5    # spike up (short) then crash (long)
+    c = pd.Series(vals, index=pd.date_range("2024-01-01", periods=len(vals), freq="B"))
+    sig = ZScoreReversion(20, 1.5, 0.5).generate_signal(pd.DataFrame({"close": c}))
+    assert (sig.iloc[-5:] == 1.0).any(), f"crash bars should be LONG, got {sig.iloc[-5:].tolist()}"
+    assert (sig.iloc[30:35] == -1.0).any(), "spike bars should be short"

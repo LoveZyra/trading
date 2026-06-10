@@ -58,6 +58,8 @@ alpha-forge/
 │   ├── portfolio.py     # concentration/correlation/ENB/VaR/beta/stress — portfolio risk
 │   ├── signal_tracker.py # log daily signals + evaluate hit-rate/calibration (feedback loop)
 │   ├── optimize.py      # grid search + walk-forward out-of-sample validation
+│   ├── rebalance.py     # last-actual-trading-day rebalance dates (never calendar labels)
+│   ├── param_grids.py   # shared default parameter grids (autoresearch + CLI)
 │   ├── report.py        # equity/drawdown chart + markdown report
 │   └── run_backtest.py  # CLI tying it all together
 ├── references/
@@ -69,6 +71,7 @@ alpha-forge/
 │   ├── research_roadmap.md  # recent arXiv papers mapped to skill features (what & why)
 │   ├── strategies.md     # strategy design notes & parameter guidance
 │   └── pitfalls.md       # look-ahead, overfitting, costs, survivorship — read this
+├── sectors.json         # editable ticker->sector map (auto-merged at import)
 └── examples/
     └── quickstart.py
 ```
