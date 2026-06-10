@@ -342,3 +342,20 @@ def test_walk_forward_train_frac_semantics():
     fold = n // (n_splits + 1)
     expected = int(fold * train_frac / (1 - train_frac))
     assert abs(expected / (expected + fold) - train_frac) < 0.02
+
+
+def test_pit_snapshot_utf8_roundtrip(tmp_path):
+    """PIT snapshots carry Chinese + emoji; they must be written/read as UTF-8
+    explicitly (Windows' locale default is GBK, which can't encode emoji)."""
+    from scripts.data import pit
+    base = str(tmp_path / "pit")
+    fund = pd.DataFrame([{"symbol": "600519", "name": "贵州茅台🍷", "pe": 25.0}]).set_index("symbol")
+    pit.save_snapshot("2026-06-10", fundamentals_panel=fund.reset_index().set_index("symbol"),
+                      sentiment_by_symbol={"600519": 0.5, "备注": -0.2},
+                      macro={"说明": "risk-on 🚀"}, base=base)
+    raw = (tmp_path / "pit" / "sentiment" / "2026-06-10.json").read_bytes()
+    raw.decode("utf-8")                                    # must be valid UTF-8
+    hist = pit.load_pit_sentiment(base)
+    assert hist[pd.Timestamp("2026-06-10")]["600519"] == 0.5
+    funds = pit.load_pit_fundamentals(base)
+    assert "贵州茅台🍷" in funds[pd.Timestamp("2026-06-10")]["name"].values

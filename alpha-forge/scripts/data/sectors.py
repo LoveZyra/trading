@@ -53,7 +53,7 @@ def load_sector_map(path) -> int:
     Lets a project keep its own sector file instead of editing this module."""
     import json
     from pathlib import Path
-    data = json.loads(Path(path).read_text())
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
     for k, v in data.items():
         register_sector(k, str(v))
     return len(data)

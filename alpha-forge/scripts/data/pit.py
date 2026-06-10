@@ -31,11 +31,11 @@ def save_snapshot(date, *, fundamentals_panel=None, sentiment_by_symbol=None,
         written["fundamentals"] = str(fp)
     if sentiment_by_symbol:
         p = base / "sentiment"; p.mkdir(parents=True, exist_ok=True)
-        fp = p / f"{d}.json"; fp.write_text(json.dumps(sentiment_by_symbol, ensure_ascii=False))
+        fp = p / f"{d}.json"; fp.write_text(json.dumps(sentiment_by_symbol, ensure_ascii=False), encoding="utf-8")
         written["sentiment"] = str(fp)
     if macro is not None or market is not None:
         p = base / "env"; p.mkdir(parents=True, exist_ok=True)
-        fp = p / f"{d}.json"; fp.write_text(json.dumps({"macro": macro, "market": market}, ensure_ascii=False, default=float))
+        fp = p / f"{d}.json"; fp.write_text(json.dumps({"macro": macro, "market": market}, ensure_ascii=False, default=float), encoding="utf-8")
         written["env"] = str(fp)
     return written
 
@@ -46,7 +46,7 @@ def load_pit_sentiment(base: str = DEFAULT_BASE) -> dict:
     out = {}
     if p.exists():
         for f in sorted(p.glob("*.json")):
-            out[pd.Timestamp(f.stem)] = json.loads(f.read_text())
+            out[pd.Timestamp(f.stem)] = json.loads(f.read_text(encoding="utf-8"))
     return out
 
 

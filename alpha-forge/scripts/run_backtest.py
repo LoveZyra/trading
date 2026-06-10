@@ -117,7 +117,8 @@ def main(argv=None):
         png = rpt.plot_result(result, benchmark=bench, title=f"{strat.name} — {stem}",
                               path=outdir / f"{stem}_{strat.name}.png")
         md = outdir / f"{stem}_{strat.name}.md"
-        md.write_text(rpt.markdown_report(result, name=strat.name, benchmark=bench, params=params))
+        md.write_text(rpt.markdown_report(result, name=strat.name, benchmark=bench,
+                                          params=params), encoding="utf-8")
         print(f"Saved chart -> {png}  | report -> {md}")
 
 

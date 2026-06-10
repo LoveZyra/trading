@@ -311,5 +311,5 @@ def load_external_scores(json_path):
     sandbox while still using the model's signal."""
     import json
     from pathlib import Path
-    raw = json.loads(Path(json_path).read_text())
+    raw = json.loads(Path(json_path).read_text(encoding="utf-8"))
     return {k: float(v) for k, v in raw.items()}

@@ -34,7 +34,7 @@ def from_mcp_payload(payload: dict, *, name: str = "ibkr") -> pd.DataFrame:
 def from_mcp_json_file(path: str | Path, *, name: str | None = None) -> pd.DataFrame:
     """Load broker history that Claude previously dumped to a .json file."""
     path = Path(path)
-    payload = json.loads(path.read_text())
+    payload = json.loads(path.read_text(encoding="utf-8"))
     return from_columnar(payload, name=name or f"ibkr:{path.stem}")
 
 

@@ -90,7 +90,7 @@ def from_json_file(path: str | Path) -> list[dict]:
     Accepts either a list of dicts, or {"results"/"news"/"items": [...]} . Each item
     should have at least a title; other fields are mapped if present (headline/链接/
     publishedAt etc.)."""
-    raw = json.loads(Path(path).read_text())
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
     if isinstance(raw, dict):
         for key in ("results", "news", "items", "data"):
             if key in raw and isinstance(raw[key], list):

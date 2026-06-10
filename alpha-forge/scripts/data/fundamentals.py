@@ -167,7 +167,7 @@ def from_akshare(symbol: str, market: str = "cn") -> dict:
 def from_json_file(path: str | Path) -> dict:
     """Read a fundamentals snapshot that Claude saved from the broker MCP or a
     Web search (canonical keys, or close enough). Unknown keys are ignored."""
-    raw = json.loads(Path(path).read_text())
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
     out = {k: None for k in CANONICAL_FIELDS}
     for k in CANONICAL_FIELDS:
         if k in raw:
