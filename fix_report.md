@@ -56,11 +56,11 @@
 - 向量化重写（vol_regime / rank_and_weight）与旧实现逐值等价性验证通过
 - 端到端冒烟（warnings 升级为 error）：单资产回测、walk-forward、autoresearch、多因子组合、ML 因子回测、regime、risk parity 全部正常
 
-## 三、复审结论：剩余优化点（均为低风险/运营项）
-1. **pit_store 仅 1 天快照**（2026-06-09）：PIT 回测要积累数月才有意义，确认每日快照任务在跑（运营项，非代码）。
-2. **apply_cn_rules 仍是逐 bar 循环**：状态依赖难以向量化，日线单标的规模下性能可接受；若未来跑分钟级再优化。
-3. **裸 6 位韩股代码仍按约定判为 CN**：根本歧义无法从代码推断，建议 watchlist_kr.txt 统一带 .KS/.KQ 后缀。
-4. **行为微调已记录**：ZScoreReversion(allow_short=False) 现持多至 |z|≤exit（旧版在 z≥+entry 也平仓）；中文情绪不再对"评级下调/下调"这类重叠词条双计分——两者均为更合理语义，但与旧数值有差异。
-5. **测试覆盖仍有洼地**：html_report（872 行）只有注入转义 1 项直接测试；autoresearch / portfolio 模块覆盖较浅。
-6. **SECTOR_MAP 仍以硬编码为主**：接口已加（register_sector/load_sector_map），建议把映射迁到外部 sectors.json。
-7. **改动未提交 git**：48 个文件已暂存，建议审阅后 commit（沙盒内 git 偶发 index.lock 告警，必要时在本机执行）。
+## 三、复审遗留项的二次处理（2026-06-10 同日完成）
+1. ~~apply_cn_rules 逐 bar 循环~~ → 改为 numpy 数组循环（逻辑不变，约 10-50x 提速，5000 bar 实测 <2ms/次）。
+2. ~~韩股代码歧义~~ → watchlist_kr.txt 统一带 .KS 后缀；from_pykrx / from_akshare 自动剥离后缀，所有适配器对带后缀代码兼容。
+3. ~~SECTOR_MAP 硬编码~~ → 导出 alpha-forge/sectors.json（51 条），sectors.py 在 import 时自动合并工作目录或 skill 根目录的 sectors.json。
+4. ~~测试覆盖洼地~~ → 新增 7 项：html_report 各 section 渲染、autoresearch 单资产+ensemble+组合 smoke、portfolio_health、ZScore 新语义 pin、适配器后缀剥离、sectors.json 外挂。测试合计 **55 passed**。
+5. ~~git 未提交~~ → 已提交 84a137d（49 文件；之前卡住的 .git/index.lock 已清理）。
+6. **行为微调已记录**（保持）：ZScoreReversion 持仓至 |z|≤exit、中文情绪重叠词条不再双计分——已用测试 pin 住新语义。
+7. **唯一遗留（需要你决定）**：pit_store 仅 1 天快照，而负责积累快照的 3 个定时任务（A股盘后复盘 / 美股盘后复盘 / 每日早间简报）当前都处于 **禁用** 状态——PIT 数据不会再增长。需要的话重新启用即可。
