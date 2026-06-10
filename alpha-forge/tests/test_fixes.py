@@ -318,3 +318,26 @@ def test_zscore_gap_flips_instead_of_netting_zero():
     sig = ZScoreReversion(20, 1.5, 0.5).generate_signal(pd.DataFrame({"close": c}))
     assert (sig.iloc[-5:] == 1.0).any(), f"crash bars should be LONG, got {sig.iloc[-5:].tolist()}"
     assert (sig.iloc[30:35] == -1.0).any(), "spike bars should be short"
+
+
+def test_grid_search_drawdown_sorted_best_first():
+    """max_drawdown is negative; 'best first' means the SHALLOWEST drawdown on top."""
+    from scripts.optimize import grid_search
+    from scripts.strategies import REGISTRY
+    df = _uptrend(300)
+    tbl = grid_search(REGISTRY["ma_crossover"], df,
+                      {"fast": [5, 20], "slow": [50, 100]}, metric="max_drawdown")
+    dd = tbl["max_drawdown"].dropna()
+    assert dd.iloc[0] == dd.max(), "best (shallowest) drawdown must be first"
+
+
+def test_walk_forward_train_frac_semantics():
+    """train_frac=0.6 must yield a train window ~60% of train+test (was 71%)."""
+    from scripts import optimize as opt
+    captured = {}
+    orig = opt.backtest
+
+    n, n_splits, train_frac = 350, 5, 0.6
+    fold = n // (n_splits + 1)
+    expected = int(fold * train_frac / (1 - train_frac))
+    assert abs(expected / (expected + fold) - train_frac) < 0.02

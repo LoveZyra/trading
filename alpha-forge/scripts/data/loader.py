@@ -75,8 +75,18 @@ def load(symbol: str, source: str = "yfinance", *, use_cache: bool = True,
         CACHE_DIR.mkdir(exist_ok=True)
         try:
             df.to_parquet(cache)
-        except Exception:
-            pass  # parquet engine optional; caching is best-effort
+            # housekeeping: an open-ended request writes a new date-keyed file each
+            # day -- drop this symbol/source's older variants so .cache doesn't grow
+            # one parquet per symbol per day forever.
+            prefix = f"{symbol}_{source}_".replace("/", "_")
+            for old in CACHE_DIR.glob(f"{prefix}*.parquet"):
+                if old != cache:
+                    try:
+                        old.unlink()
+                    except OSError:
+                        pass
+        except Exception:  # noqa: BLE001
+            log.debug("cache write skipped", exc_info=True)  # parquet optional; best-effort
     return df
 
 

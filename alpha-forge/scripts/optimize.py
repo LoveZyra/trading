@@ -39,7 +39,7 @@ def grid_search(StrategyCls, df: pd.DataFrame, grid: dict[str, list],
     """Evaluate every parameter combination; return a table sorted by `metric`.
 
     metric: any key from metrics.summary -- 'sharpe', 'sortino', 'calmar', 'cagr'...
-    Higher is better for all of them except max_drawdown (handled automatically).
+    Higher is always better (drawdowns are negative, so -5% sorts above -30%).
     """
     rows = []
     for params in _param_combos(grid):
@@ -54,8 +54,10 @@ def grid_search(StrategyCls, df: pd.DataFrame, grid: dict[str, list],
             rows.append({**params, "error": str(e)})
     table = pd.DataFrame(rows)
     if metric in table.columns:
-        ascending = metric in ("max_drawdown",)
-        table = table.sort_values(metric, ascending=ascending).reset_index(drop=True)
+        # All metrics, max_drawdown included, are best-when-LARGEST: drawdowns are
+        # stored as negatives, so -0.05 (shallow) > -0.30 (deep). The old
+        # ascending-for-drawdown special case put the WORST config first.
+        table = table.sort_values(metric, ascending=False, na_position="last").reset_index(drop=True)
     return table
 
 
@@ -96,7 +98,10 @@ def walk_forward(StrategyCls, df: pd.DataFrame, grid: dict[str, list],
     for k in range(1, n_splits + 1):
         test_start = fold_size * k
         test_end = min(fold_size * (k + 1), n)
-        train_start = 0 if anchored else max(0, test_start - int(fold_size / (1 - train_frac)))
+        # train window sized so train/(train+test) == train_frac (the old
+        # fold_size/(1-train_frac) made train_frac=0.6 behave like 71%).
+        train_len = int(fold_size * train_frac / max(1e-9, 1 - train_frac))
+        train_start = 0 if anchored else max(0, test_start - train_len)
         train = df.iloc[train_start:test_start]
         test = df.iloc[test_start:test_end]
         if len(train) < 30 or len(test) < 5:
