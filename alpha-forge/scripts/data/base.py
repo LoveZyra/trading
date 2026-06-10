@@ -79,15 +79,26 @@ def validate_ohlcv(df: pd.DataFrame, *, name: str = "data") -> pd.DataFrame:
     df = df[~df.index.duplicated(keep="last")].sort_index()
     df = df.dropna(subset=["close"])
 
-    # OHLC consistency: high must be the bar's max, low its min. Bad rows (vendor
-    # glitches) are dropped with a warning rather than silently feeding ATR /
-    # Donchian / true-range garbage.
-    px = df[["open", "high", "low", "close"]]
-    bad = (
-        (df["high"] < df["low"])
-        | (df["high"] < px.drop(columns="high").max(axis=1))
-        | (df["low"] > px.drop(columns="low").min(axis=1))
-    )
+    # Non-positive close = vendor garbage (price can't be 0): drop outright.
+    df = df[df["close"] > 0]
+
+    # OHLC consistency: high must be the bar's max, low its min. Small violations
+    # (rounding / sloppy vendor low, <=1% of close) are REPAIRED by widening
+    # high/low so a real trading day isn't thrown away; anything larger is dropped
+    # rather than silently feeding ATR / Donchian / true-range garbage.
+    need_hi = df[["open", "close"]].max(axis=1)
+    need_lo = df[["open", "close"]].min(axis=1)
+    viol = ((need_hi - df["high"]).clip(lower=0)
+            + (df["low"] - need_lo).clip(lower=0)
+            + (df["low"] - df["high"]).clip(lower=0)) / df["close"]
+    fixable = (viol > 0) & (viol <= 0.01)
+    if bool(fixable.any()):
+        logging.getLogger(__name__).warning(
+            "%s: repairing %d rows with minor OHLC inconsistencies (<=1%%)",
+            name, int(fixable.sum()))
+        df.loc[fixable, "high"] = df.loc[fixable, ["high", "open", "close"]].max(axis=1)
+        df.loc[fixable, "low"] = df.loc[fixable, ["low", "open", "close"]].min(axis=1)
+    bad = viol > 0.01
     if bool(bad.any()):
         logging.getLogger(__name__).warning(
             "%s: dropping %d rows with inconsistent OHLC (high<low or high/low not extreme)",

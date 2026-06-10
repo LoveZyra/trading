@@ -14,3 +14,5 @@ alpha-forge/examples/output/
 alpha-forge/.cache/
 .pytest_cache/
 __pycache__/
+/reports
+/data
