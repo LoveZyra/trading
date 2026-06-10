@@ -3,7 +3,13 @@
 A stock's news-driven move is rarely idiosyncratic: the sector cycle (the whole semi
 complex moving on an NVDA print) and macro (Fed/CPI/rates) usually dominate. This map
 lets the news layer aggregate *peer* and *sector* headlines, not just the company's own.
-Extend SECTOR_MAP for any ticker you follow; unknown tickers fall back to 'other'.
+
+Extending the map (preferred order):
+  1. Drop a `sectors.json` ({"TICKER": "sector", ...}) in the project working dir or
+     the skill root -- it is auto-merged over the built-in defaults at import.
+  2. Call register_sector()/load_sector_map() at runtime.
+  3. Edit SECTOR_MAP below (last resort; survives only in this copy of the skill).
+Unknown tickers fall back to 'other'.
 """
 from __future__ import annotations
 
@@ -35,6 +41,22 @@ SECTOR_MAP = {
     "600519": "cn_liquor", "300750": "cn_battery", "002594": "cn_auto",
     "600036": "cn_bank", "601318": "cn_insurance",
 }
+
+
+def register_sector(symbol: str, sector: str) -> None:
+    """Add/override one ticker's sector at runtime (unknown names default to 'other')."""
+    SECTOR_MAP[str(symbol).upper()] = sector
+
+
+def load_sector_map(path) -> int:
+    """Merge a {symbol: sector} JSON file into SECTOR_MAP; returns #entries loaded.
+    Lets a project keep its own sector file instead of editing this module."""
+    import json
+    from pathlib import Path
+    data = json.loads(Path(path).read_text())
+    for k, v in data.items():
+        register_sector(k, str(v))
+    return len(data)
 
 
 def sector_of(symbol: str) -> str:
@@ -90,3 +112,25 @@ SECTOR_MAP.update({
     # foundry / telecom equipment
     "688981": "cn_foundry", "000063": "cn_telecom_equip",
 })
+
+
+# ---- auto-merge an external sectors.json over the built-ins ----------------
+def _autoload_external() -> None:
+    import json
+    from pathlib import Path as _P
+    candidates = [
+        _P.cwd() / "sectors.json",                                  # project dir
+        _P(__file__).resolve().parent.parent.parent / "sectors.json",  # skill root
+    ]
+    for fp in candidates:
+        try:
+            if fp.exists():
+                data = json.loads(fp.read_text(encoding="utf-8"))
+                for k, v in data.items():
+                    SECTOR_MAP[str(k).upper()] = str(v)
+        except Exception:  # noqa: BLE001  a broken optional file must not kill imports
+            import logging
+            logging.getLogger(__name__).warning("could not load %s", fp, exc_info=True)
+
+
+_autoload_external()

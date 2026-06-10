@@ -62,6 +62,10 @@ NEG_CN = {
 NEGATORS_CN = {"不", "未", "无", "没有", "难以", "下降", "低于"}
 
 _WORD_RE = re.compile(r"[A-Za-z]+")
+# One alternation over all CN terms, longest-first so "评级下调" wins over "下调"
+# (the old per-term scan double-counted overlapping terms and was O(lexicon*text)).
+_CN_RE = re.compile("|".join(
+    map(re.escape, sorted(set(POS_CN) | set(NEG_CN), key=len, reverse=True))))
 
 
 def _score_english(text: str) -> tuple[float, int]:
@@ -80,21 +84,17 @@ def _score_english(text: str) -> tuple[float, int]:
 
 def _score_chinese(text: str) -> tuple[float, int]:
     total, hits = 0.0, 0
-    for lex in (POS_CN, NEG_CN):
-        for term, val in lex.items():
-            start = 0
-            while True:
-                idx = text.find(term, start)
-                if idx < 0:
-                    break
-                # positional negation: only flip THIS occurrence if a negator sits in the
-                # 1-2 chars immediately before it ("不大涨" flips, but a "不" 50 chars away
-                # no longer flips an unrelated "大涨"). Per-occurrence, not whole-string.
-                pre = text[max(0, idx - 2):idx]
-                flip = any(neg in pre for neg in NEGATORS_CN)
-                total += (-val if flip else val)
-                hits += 1
-                start = idx + len(term)
+    for m in _CN_RE.finditer(text):
+        term = m.group(0)
+        val = POS_CN.get(term, 0.0) + NEG_CN.get(term, 0.0)
+        # positional negation: only flip THIS occurrence if a negator sits in the
+        # 1-2 chars immediately before it ("不大涨" flips, but a "不" 50 chars away
+        # no longer flips an unrelated "大涨"). Per-occurrence, not whole-string.
+        pre = text[max(0, m.start() - 2):m.start()]
+        if any(neg in pre for neg in NEGATORS_CN):
+            val = -val
+        total += val
+        hits += 1
     return total, hits
 
 

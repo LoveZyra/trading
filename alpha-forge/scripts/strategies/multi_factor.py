@@ -14,8 +14,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .. import indicators as ind
-
 
 def _cross_section_z(s: pd.Series) -> pd.Series:
     """Standardize a factor across the universe at one point in time."""
@@ -49,20 +47,20 @@ def rank_and_weight(scores: pd.DataFrame, top: float = 0.2, bottom: float = 0.0,
     Returns weights summing to 1 on the long side (and -1 on the short side if
     long_short). Equal weight within each bucket.
     """
-    weights = pd.DataFrame(0.0, index=scores.index, columns=scores.columns)
-    for dt, row in scores.iterrows():
-        valid = row.dropna()
-        n = len(valid)
-        if n == 0:
-            continue
-        ranked = valid.sort_values(ascending=False)
-        n_long = max(1, int(round(n * top)))
-        longs = ranked.index[:n_long]
-        weights.loc[dt, longs] = 1.0 / n_long
-        if long_short and bottom > 0:
-            n_short = max(1, int(round(n * bottom)))
-            shorts = ranked.index[-n_short:]
-            weights.loc[dt, shorts] = -1.0 / n_short
+    # Vectorized (no per-row Python loop): rank each date cross-sectionally and
+    # bucket by rank. method='first' breaks ties by column order, matching the
+    # stable sort_values selection of the old implementation.
+    n = scores.notna().sum(axis=1)
+    has = n > 0
+    n_long = (n * top).round().clip(lower=1).where(has)
+    rk_desc = scores.rank(axis=1, ascending=False, method="first")
+    long_mask = rk_desc.le(n_long, axis=0)
+    weights = long_mask.astype(float).div(n_long, axis=0).fillna(0.0)
+    if long_short and bottom > 0:
+        n_short = (n * bottom).round().clip(lower=1).where(has)
+        rk_asc = scores.rank(axis=1, ascending=True, method="first")
+        short_mask = rk_asc.le(n_short, axis=0)
+        weights = weights - short_mask.astype(float).div(n_short, axis=0).fillna(0.0)
     return weights
 
 
@@ -166,7 +164,11 @@ def multi_factor_signal(data: dict,
             z = pd.DataFrame([s.values] * len(close), index=close.index, columns=close.columns)
         blended = blended.add(z * (w / total_w), fill_value=0.0)
 
-    rebal_dates = close.resample(rebalance).last().index
+    # Last actual trading day per period -- calendar resample labels (e.g. a
+    # Sunday Jan 31) produced all-NaN rows that dropna() removed, silently skipping
+    # ~28% of monthly rebalances. See scripts/rebalance.py.
+    from ..rebalance import rebalance_dates
+    rebal_dates = rebalance_dates(close.index, rebalance)
     scores_on_dates = blended.reindex(rebal_dates).dropna(how="all")
     weights = rank_and_weight(scores_on_dates, top=top, bottom=bottom, long_short=long_short)
     return weights.reindex(close.index).ffill().fillna(0.0)

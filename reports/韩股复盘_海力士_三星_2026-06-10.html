@@ -1,21 +1,9 @@
-"""量化分析报告渲染器 — 把结构化 report dict 渲染成单文件机构研报风 HTML。
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>韩股内存复盘 · SK海力士 &amp; 三星电子</title>
+<style>
 
-用法：
-    from scripts import html_report as H
-    report = {"meta": {...}, "verdict": {...}, "levels": [...], ...}   # 见 SCHEMA.md
-    H.save_html(report, "trading/reports/美股复盘_2026-06-09.html")
-    html = H.render(report)                                            # 或拿字符串
-
-颜色为「红涨绿跌」(A股惯例)；如需西式(绿涨红跌)，把下方 _CSS 里 --pos/--neg 两值对调。
-自包含、无外部依赖：CSS / JS 已内联，中文字体走系统回退，离线可开。
-每个字段「给了就渲染、不给就跳过」，支持单标的 / 组合 / 自选池 / 回测等多种报告。
-"""
-from __future__ import annotations
-
-import html as _html
-import json as _json
-
-_CSS = r"""
 /* ============================================================================
    alpha-forge · 量化分析报告模板  —  institutional research-note style
    Light, restrained, print-first. All figures tabular & monospaced.
@@ -353,9 +341,13 @@ table.grid .flagcell{color:var(--flag);font-weight:600}
   .masthead .stamp{position:absolute}
 }
 
-"""
 
-_JS = r"""
+</style></head>
+<body>
+<div class="sheet" id="sheet"></div>
+<script id="report-data" type="application/json">{"meta": {"title": "韩股内存复盘 · SK海力士 & 三星电子", "subtitle": "KRX 本土原股 · 单位 ₩(韩元)", "report_type": "single", "date": "2026-06-09", "weekday": "周二（北京时间 6/10 盘后）", "market": "韩股（KOSPI）", "data_source": "IBKR KRX 5年日线（延迟900s）", "universe": "watchlist_kr · 内存双雄", "tag": "机械量化参考 · 非投资建议 · 红涨绿跌(A股惯例)", "generated_by": "alpha-forge"}, "verdict": {"stance": "中期多头 · 短线 risk-off 回调（等回踩别追高）", "action": "\u003cb>结构大牛不破、节奏上等回踩\u003c/b>：SK海力士回踩 1.79–1.94M、三星回踩 268–290k 再分批；MACD 已转空、regime 自动砍仓至 ×0.40，\u003cb>不追高、不在熔断式下跌中接刀\u003c/b>。", "summary": "两只都是结构性大牛（海力士 12月 \u003cspan class='pos'>+914%\u003c/span>、三星 \u003cspan class='pos'>+438%\u003c/span>），价仍在所有均线之上；但 6/8 起 AI 链 risk-off：\u003cb>博通 Q3 AI 指引不及买方预期\u003c/b> + \u003cb>Google 发布 TurboQuant 内存压缩技术\u003c/b>动摇\"AI 需海量 HBM/DRAM 的数量逻辑\"，引爆获利了结。海力士今日 \u003cspan class='neg'>−8.7%\u003c/span>、三星 \u003cspan class='neg'>−6.7%\u003c/span>，KOSPI \u003cspan class='neg'>−6.5%\u003c/span>。基本面未坏：英伟达 HBM4 认证三家、海力士约 70% 份额，Q2 两家合计营业利润预期 >150 万亿₩(创纪录)、Goldman 测 2026 DRAM 缺口 4.9%(15年最严重)。"}, "alerts": [{"level": "high", "symbol": "000660", "name": "SK海力士", "signal": "watch", "headline": "今日 −8.7% / 5日 −14.3%，结构多头短线转弱", "detail": "现 ₩2,022,000（距52周高 -16.0%），RSI 54.1、\u003cb>MACD -40,266 转空\u003c/b>、ADX 40.4 强趋势、年化波动 106%(极高)；价仍>>MA50/200(多头排列)，regime 砍至 ×0.4。HBM4 约 70% 份额是硬利好。", "action": "等回踩买入区 ₩1,788,920–1,944,307 分批，破 ₩1,555,841 止损；别追高。"}, {"level": "high", "symbol": "005930", "name": "三星电子", "signal": "watch", "headline": "今日 −6.7% / 5日 −16.7%，同步回调", "detail": "现 ₩300,300（距52周高 -18.8%），RSI 52.2、\u003cb>MACD -3,492 转空\u003c/b>、ADX 32.0、波动 90%；HBM4 加速研发但对海力士仍是追赶者。", "action": "回踩 ₩267,894–289,498 分批，止损 ₩235,487。"}, {"level": "high", "symbol": "催化", "name": "内存周期/AI叙事", "signal": "watch", "headline": "新空头叙事：Google TurboQuant 内存压缩 + 博通 AI 指引", "detail": "若压缩/量化降低单模型显存占用，超大厂可\"榨干\"现有 HBM、推迟升级、混入更便宜内存层 → 直击驱动海力士/三星的\u003cb>数量逻辑\u003c/b>；叠加博通 Q3 AI 芯片指引($16B)不及买方 whisper($17.2B)，引爆 AI 链获利了结(内存连跌第二日)。", "action": "强周期盛极防回撤；基本面(缺口/份额/财报)未坏，重在节奏。"}, {"level": "high", "symbol": "KOSPI", "name": "大盘/集中度", "signal": "watch", "headline": "KOSPI(KODEX200) 今日 −6.5% / 5日 −14%，但 regime 仍 +0.698 多头", "detail": "价在200线上、3月动量 +47%、\u003cb>年化波动 73%(极高)\u003c/b>。三星+海力士主导指数涨幅、极端集中 → 大盘几乎=两只存储的行情，risk-off 时回撤被放大。", "action": "看 KOSPI 等于看这两只；外资流向与 HBM 叙事是关键。"}], "regime": {"title": "📊 KOSPI 大盘环境（KODEX200 代理）", "score": 0.698, "label": "大盘多头，但高位高波动 + 极端集中", "rows": [{"item": "KOSPI regime", "value": "+0.698", "read": "大盘多头/risk-on·价在200线上·3月动量 +47%·年化波动 73%(极高)"}, {"item": "今日 / 5日", "value": "-6.53% / -14.09%", "read": "熔断式回调，AI 链 risk-off"}, {"item": "集中度", "value": "极高", "read": "三星+海力士主导 KOSPI 涨幅，指数≈两只存储行情"}], "note": "趋势仍多头但波动 73% 属\"高位高波动\"危险型；指数命脉系于内存双雄。"}, "macro": {"title": "🌐 全球 AI / 内存周期（美股半导体外溢）", "risk_score": -0.28, "label": "短线 risk-off · 结构未破", "vix": 19.87, "vix_note": "美股 VIX ~19.9，AI 高估值承压外溢韩股", "rows": [{"item": "博通 AI 指引", "value": "−", "read": "Q3 AI $16B(+200%YoY) 但不及买方 whisper $17.2B → 卖事实"}, {"item": "Google TurboQuant", "value": "−−", "read": "内存压缩/量化或降低单模型显存需求，质疑\"数量逻辑\""}, {"item": "HBM4 / Vera Rubin", "value": "+", "read": "英伟达认证三家、海力士约 70% 份额、均已量产"}, {"item": "DRAM/NAND 缺口", "value": "++", "read": "Goldman 2026 DRAM 缺口 4.9%(15年最严重)、卖到 2028；Q1 DRAM +60%/NAND +70%"}, {"item": "Q2 财报", "value": "++", "read": "三星+海力士 Q2 合计营业利润预期 >150 万亿₩(创纪录)"}], "note": "结构(缺口/份额/财报)极强 vs 盘面(数量逻辑被质疑/获利了结)——典型超级周期中的剧烈洗盘。"}, "calendar": [{"event": "美 CPI(5月)", "date": "6/10", "in_days": 0, "impact": "high", "flagged": true}, {"event": "美 FOMC 决议", "date": "6/16–17", "in_days": 7, "impact": "high", "flagged": false}, {"event": "三星 Q2 预告(约)", "date": "~7/8", "in_days": 28, "impact": "med", "flagged": false}, {"event": "SK海力士 Q2(约)", "date": "~7/24", "in_days": 44, "impact": "med", "flagged": false}], "factor_rank": {"title": "① 动量/波动对照", "note_head": "结构性大牛", "hint": "动量为价格涨幅%；两只均价>>所有均线、12月动量惊人，但年化波动 90–106% 极高，回撤同样剧烈。", "rows": [{"rank": 1, "symbol": "000660", "name": "SK海力士", "leveraged": false, "price": 2022000.0, "m6": 288.0, "m12": 914.0, "vol": 106, "signal": "long", "regime": "×0.4", "score": 8.98}, {"rank": 2, "symbol": "005930", "name": "三星电子", "leveraged": false, "price": 300300.0, "m6": 217.0, "m12": 438.0, "vol": 90, "signal": "long", "regime": "×0.4", "score": 4.25}]}, "groups": [{"title": "结构面（利好）— 超级周期硬支撑", "tag": "基本面强·HBM 主导", "tone": "strong", "body": "英伟达 \u003cb>HBM4 认证三家、海力士约 70% 份额\u003c/b>；Goldman 测 \u003cb>2026 DRAM 缺口 4.9%\u003c/b>(15年最严重)、行业\"卖到 2028\"；\u003cb>Q2 两家合计营业利润预期 >150 万亿₩(创纪录)\u003c/b>。价仍在所有均线上方，长期趋势未破。"}, {"title": "盘面面（利空）— 数量逻辑遭质疑", "tag": "获利了结·高波动", "tone": "weak", "body": "\u003cb>Google TurboQuant 内存压缩\u003c/b>动摇\"AI 需海量内存\"的数量叙事；\u003cb>博通 AI 指引不及 whisper\u003c/b> 引爆 AI 链获利了结；MACD 双双转空、年化波动 90–106%、估值与持仓拥挤、KOSPI 熔断式回撤——强周期\"盛极必反\"的风险点。"}], "technical": {"title": "📈 SK海力士 价格阶梯（HBM 龙头）", "signal_note": "ma_cross +1 / ts_mom +1 · regime ×0.4", "level": {"price": 2022000.0, "buy_low": 1788920.49, "buy_high": 1944306.83, "stop": 1555840.98, "target": 2407000.0, "target2": 2488159.02, "rr": 1.74, "change_pct": -8.71}, "stats": [{"k": "12月动量", "v": "+914%", "x": "抛物线", "vhtml": "+914%", "color": "var(--pos)"}, {"k": "6/3月动量", "v": "+288% / +116%", "x": "强趋势"}, {"k": "年化波动", "v": "106%", "x": "极高·回撤大"}, {"k": "RSI / ADX", "v": "54.1 / 40.4", "x": "趋势强、动量降温"}, {"k": "MACD柱", "v": "-40,266", "x": "短线转空", "color": "var(--neg)"}, {"k": "均线 20/50/200", "v": "2,048,350/1,521,780/818,758", "x": "多头排列、价回落至MA20下"}, {"k": "距52周高", "v": "-16.0%", "x": "高 2,407,000"}], "note": "长期趋势未破、HBM4 份额硬支撑；短线 MACD 转空 + 数量逻辑担忧，等回踩买入区分批、别追高。"}, "levels": [{"symbol": "000660", "name": "SK海力士", "sector": "内存/HBM", "price": 2022000.0, "change_pct": -8.71, "signal": "long", "regime": "×0.4", "buy_low": 1788920.49, "buy_high": 1944306.83, "stop": 1555840.98, "target": 2407000.0, "rr": 1.74, "rsi": 54.1, "pctb": 0.47, "flag": true, "note": "🔴 MACD转空·等回踩MA20带·别追高·破1.56M止损"}, {"symbol": "005930", "name": "三星电子", "sector": "内存/HBM", "price": 300300.0, "change_pct": -6.74, "signal": "long", "regime": "×0.4", "buy_low": 267893.66, "buy_high": 289497.89, "stop": 235487.33, "target": 355634.38, "rr": 1.78, "rsi": 52.2, "pctb": 0.46, "flag": true, "note": "🔴 同步回调·回踩268–290k分批·HBM4追赶者"}], "levels_title": "② 建议买卖点（含 R/R 条）", "levels_hint": "买卖点为价格结构+ATR 机械测算；单位₩。两只均处结构多头、短线回调，等回踩别追高。", "sentiment": {"title": "🗞 三层时效情绪（结构 vs 盘面背离）", "composite": 0.0, "note": "\u003cb>结构面强、盘面 risk-off\u003c/b>：HBM4 份额/DRAM 缺口/创纪录财报是硬利好，但 Google TurboQuant 质疑\"数量逻辑\"+博通指引引爆获利了结。词典对强基本面读多、对今日暴跌读空 → 综合中性偏谨慎，\u003cb>重节奏：等回踩、别追高、不接刀\u003c/b>。", "layers": [{"layer": "个股", "score": 0.2, "key": "HBM4 认证、海力士约 70% 份额、Q2 创纪录利润预期；但短线 MACD 转空、回撤剧烈"}, {"layer": "板块(内存/HBM)", "score": -0.1, "key": "超级周期(缺口4.9%/卖到2028) vs TurboQuant 压缩+\"盛极必反\"担忧 → 中性偏空"}, {"layer": "市场(KOSPI)", "score": 0.0, "key": "regime 仍 +0.70 多头，但今日 −6.5% risk-off、极端集中放大回撤"}]}, "holdings": "本次为研究观察（watchlist_kr 内存双雄），未持有 SK海力士/三星；账户持仓仅 INTC×1。", "conclusion": "①两只是\u003cb>结构性大牛、超级周期硬支撑\u003c/b>(HBM4 份额、DRAM 缺口 4.9%、Q2 创纪录利润)，价仍在所有均线之上、长期趋势未破。②但 6/8 起 \u003cb>Google TurboQuant 内存压缩 + 博通 AI 指引\u003c/b>动摇\"数量逻辑\"，引爆 AI 链获利了结，MACD 双双转空、KOSPI 熔断式回撤、regime 自动砍仓至 ×0.40。③\u003cb>机械结论：节奏 > 方向\u003c/b>——别在暴跌中追高/接刀；SK海力士等回踩 ₩1.79–1.94M、三星 ₩268–290k 分批，分别破 ₩1.56M / ₩235k 止损。④两只高度同向(同为内存)，KOSPI 命脉系于此，\u003cb>风险=数量逻辑被证伪/外资持续流出\u003c/b>，催化=Q2 财报(7月下旬)与 HBM 出货验证。", "disclaimer": "本报告由 alpha-forge 量化脚本依据 IBKR KRX 历史价格(延迟15分钟，截至 2026-06-09 收盘)与公开新闻机械生成。买卖点为价格结构+ATR 机械测算、情绪为快照、Q2 财报日期为约数(三星~7月初预告/月底、海力士~7月下旬)。仅研究复盘、不构成投资建议。单位韩元(₩)、红涨绿跌(A股惯例)。投资有风险。", "sources": [{"title": "NAI500：英伟达 HBM4 协议 / 海力士·三星下挫", "url": "https://nai500.com/blog/2026/06/nvidia-nvda-seals-hbm-pact-as-sk-hynix-samsung-slump/"}, {"title": "Stocktwits：博通连带 AI 抛售冲击三星·海力士", "url": "https://stocktwits.com/news-articles/markets/equity/broadcom-linked-ai-selloff-hits-samsung-sk-hynix-stocks-in-korea-dram-eyes-second-day-in-red/cZ0FaP6RezA"}, {"title": "Seoul Economic Daily：两家 Q2 创纪录利润(>150万亿₩)", "url": "https://en.sedaily.com/finance/2026/06/10/samsung-sk-hynix-set-for-record-q2-earnings-on-memory-boom"}, {"title": "CNBC：内存股盛极必反的周期风险", "url": "https://www.cnbc.com/2026/05/25/memory-stocks-cyclical-boom-bust-samsung-sk-hynix.html"}, {"title": "SK hynix：2026 HBM 超级周期展望", "url": "https://news.skhynix.com/2026-market-outlook-focus-on-the-hbm-led-memory-supercycle/"}]}</script>
+<script>
+
 /* ============================================================================
    alpha-forge · 报告渲染器
    Reads a single report object (schema in SCHEMA.md) and builds the DOM.
@@ -840,36 +832,7 @@ _JS = r"""
   global.QuantReport = { render: render };
 })(window);
 
-"""
 
-
-def _title(report: dict) -> str:
-    meta = report.get("meta") or {}
-    return meta.get("title") or "量化分析报告"
-
-
-def render(report: dict) -> str:
-    """结构化 report dict -> 一份完整、自包含、带样式的 HTML 字符串。"""
-    # 完整转义：< > & 防 </script> 变体与 HTML 注入；U+2028/2029 是 JS 字符串里
-    # 非法的行分隔符，会让内嵌脚本抛 SyntaxError。
-    data = (_json.dumps(report, ensure_ascii=False)
-            .replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
-            .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
-    return (
-        '<!DOCTYPE html>\n<html lang="zh-CN"><head><meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        '<title>' + _html.escape(_title(report)) + '</title>\n<style>\n' + _CSS + '\n</style></head>\n'
-        '<body>\n<div class="sheet" id="sheet"></div>\n'
-        '<script id="report-data" type="application/json">' + data + '</script>\n'
-        '<script>\n' + _JS + '\n</script>\n'
-        '<script>QuantReport.render(JSON.parse('
-        'document.getElementById("report-data").textContent),'
-        ' document.getElementById("sheet"));</script>\n</body></html>'
-    )
-
-
-def save_html(report: dict, path: str) -> str:
-    """把结构化 report dict 写成单文件自包含 .html 报告，返回路径。"""
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(render(report))
-    return path
+</script>
+<script>QuantReport.render(JSON.parse(document.getElementById("report-data").textContent), document.getElementById("sheet"));</script>
+</body></html>

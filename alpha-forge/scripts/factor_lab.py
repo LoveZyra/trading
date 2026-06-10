@@ -18,7 +18,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from . import backtest as bt, metrics as M
+from . import backtest as bt
 from . import indicators as ind  # noqa: F401  (handy for factor authors)
 
 CUSTOM_FACTORS: dict = {}

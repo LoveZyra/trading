@@ -6,6 +6,11 @@ or 252*6.5*60 for 1-min bars, etc.
 
 The headline function is `summary()` -- it returns every metric a research report
 needs in one dict, matching what professional tools (quantstats, pyfolio) report.
+
+Convention: volatility/Sharpe/Sortino use population std (ddof=0). quantstats and
+pyfolio use sample std (ddof=1), so small-sample Sharpes here are marginally higher;
+the difference vanishes for n >> 1. Documented here so cross-tool comparisons are
+explained, not mysterious.
 """
 from __future__ import annotations
 
@@ -82,10 +87,16 @@ def win_rate(returns: pd.Series) -> float:
     return float((nz > 0).mean()) if len(nz) else 0.0
 
 
-def profit_factor(returns: pd.Series) -> float:
+def profit_factor(returns: pd.Series, cap: float = 100.0) -> float:
+    """Gross gains / gross losses. Zero-loss windows (common in short walk-forward
+    segments) used to return inf, which poisoned downstream means/sorts; now they
+    return NaN when there are no gains either, and `cap` (finite, sortable) when
+    gains exist but losses don't."""
     gains = returns[returns > 0].sum()
     losses = -returns[returns < 0].sum()
-    return float(gains / losses) if losses else np.inf
+    if losses <= 0:
+        return float("nan") if gains <= 0 else float(cap)
+    return float(min(gains / losses, cap))
 
 
 def exposure(position: pd.Series) -> float:

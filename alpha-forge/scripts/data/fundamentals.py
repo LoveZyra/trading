@@ -33,9 +33,12 @@ See references/fundamentals_news.md for source quirks and the Web-search hand-of
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pandas as pd
+
+log = logging.getLogger(__name__)
 
 CANONICAL_FIELDS = [
     "symbol", "name", "market_cap", "pe", "pb", "ps", "dividend_yield",
@@ -119,12 +122,19 @@ def from_akshare(symbol: str, market: str = "cn") -> dict:
         out["pe"] = _f(kv.get("市盈率(动)") or kv.get("市盈率"))
         out["pb"] = _f(kv.get("市净率"))
     except Exception:  # noqa: BLE001
-        pass
+        log.warning("akshare valuation snapshot failed for %s", symbol, exc_info=True)
 
     # Financial ratios (净资产收益率, 销售毛利率, 资产负债率, 营收增长率)
     try:
         fin = ak.stock_financial_analysis_indicator(symbol=symbol)
         if fin is not None and len(fin):
+            # Sort explicitly by report period before taking the "latest" row --
+            # iloc[0] silently returned stale financials whenever the API changed
+            # its row order.
+            date_col = next((c for c in fin.columns if "日期" in str(c)), None)
+            if date_col is not None:
+                fin = fin.assign(**{date_col: pd.to_datetime(fin[date_col], errors="coerce")})
+                fin = fin.sort_values(date_col, ascending=False)
             row = fin.iloc[0]  # most recent period
 
             def g(*names):
@@ -142,11 +152,15 @@ def from_akshare(symbol: str, market: str = "cn") -> dict:
             out["roe"] = gp("净资产收益率(%)", "加权净资产收益率(%)")
             out["gross_margin"] = gp("销售毛利率(%)")
             out["net_margin"] = gp("销售净利率(%)")
-            out["debt_to_equity"] = gp("资产负债率(%)")
+            # 资产负债率 is debt/ASSETS; the canonical field is debt/EQUITY (what
+            # yfinance reports). Convert D/A -> D/E = DA/(1-DA) so a mixed-market
+            # quality factor z-scores one consistent ratio. DA>=1 (insolvent) -> None.
+            da = gp("资产负债率(%)")
+            out["debt_to_equity"] = (da / (1.0 - da)) if (da is not None and 0 <= da < 1) else None
             out["revenue_growth"] = gp("主营业务收入增长率(%)", "营业收入增长率(%)")
             out["earnings_growth"] = gp("净利润增长率(%)")
     except Exception:  # noqa: BLE001
-        pass
+        log.warning("akshare financial indicators failed for %s", symbol, exc_info=True)
     return out
 
 

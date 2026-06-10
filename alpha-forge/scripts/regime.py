@@ -37,13 +37,15 @@ def vol_regime(close: pd.Series, lookback: int = 21, n_states: int = 3,
     the middle state."""
     rv = close.pct_change().rolling(lookback).std(ddof=0) * np.sqrt(TRADING_DAYS)
     qs = np.linspace(0, 1, n_states + 1)[1:-1]
+    # Vectorized: one expanding-quantile column per threshold, then count how many
+    # thresholds today's vol exceeds (== the old searchsorted state). The previous
+    # per-bar dropna()+quantile() loop was O(n^2) and a hotspot under autoresearch.
+    thr_cols = [rv.expanding(min_periods=1).quantile(q) for q in qs]
+    st = sum((rv > th).astype(float) for th in thr_cols)
     state = pd.Series(np.nan, index=close.index)
-    for i in range(len(rv)):
-        if i < min_history or not np.isfinite(rv.iloc[i]):
-            continue
-        hist = rv.iloc[:i + 1].dropna()
-        thr = hist.quantile(qs).values
-        state.iloc[i] = int(np.searchsorted(thr, rv.iloc[i]))
+    mask = rv.notna().to_numpy()
+    mask[:min_history] = False
+    state[mask] = st[mask]
     return state.ffill().fillna((n_states - 1) / 2)
 
 

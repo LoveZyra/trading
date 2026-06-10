@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from . import backtest as bt, metrics as M
+from . import backtest as bt
 from .strategies import multi_factor as mf
 
 
@@ -198,12 +198,14 @@ def ml_factor_backtest(data: dict, model: FactorModel | None = None,
     fnames = list(panels)
 
     fwd = close.shift(-horizon) / close - 1.0       # forward return label
-    rebal_dates = close.resample(rebalance).last().index
-    rebal_dates = [d for d in rebal_dates if d in close.index]
+    # Last actual trading day per period (calendar labels skipped ~28% of months).
+    from .rebalance import rebalance_dates as _rebal
+    rebal_dates = _rebal(close.index, rebalance)
 
     weights = pd.DataFrame(0.0, index=close.index, columns=close.columns)
     ic_list = []
     _last_w = None
+    _loc = {d: i for i, d in enumerate(close.index)}   # O(1) lookups in the loop
 
     def feat_matrix(dates, syms):
         cols = [panels[f].reindex(index=dates, columns=syms) for f in fnames]
@@ -215,7 +217,8 @@ def ml_factor_backtest(data: dict, model: FactorModel | None = None,
             continue
         train_dates = hist[max(0, len(hist) - train_window):]
         # purge: label must be realized by t
-        usable = [s for s in train_dates if close.index.get_loc(s) + horizon < close.index.get_loc(t)]
+        t_loc = _loc[t]
+        usable = [s for s in train_dates if _loc[s] + horizon < t_loc]
         if len(usable) < max(20, min_train // 3):
             continue
 
@@ -233,7 +236,11 @@ def ml_factor_backtest(data: dict, model: FactorModel | None = None,
         Xtr = np.vstack(Xtr); ytr = np.concatenate(ytr)
         if len(ytr) < 20:
             continue
-        model.fit(Xtr, ytr)
+        # Fit a fresh clone each rebalance so stateful custom models can't leak
+        # information (or fitted state) across walk-forward folds.
+        import copy as _copy
+        model_t = _copy.deepcopy(model)
+        model_t.fit(Xtr, ytr)
 
         # predict current cross-section
         cur = np.column_stack([fcols[f].loc[t].values for f in fnames])
@@ -241,7 +248,7 @@ def ml_factor_backtest(data: dict, model: FactorModel | None = None,
         if valid.sum() < 2:
             continue
         pred = np.full(close.shape[1], np.nan)
-        pred[valid] = model.predict(cur[valid])
+        pred[valid] = model_t.predict(cur[valid])
         pred_s = pd.Series(pred, index=close.columns)
 
         # realized IC for this date (corr of prediction vs realized forward return)

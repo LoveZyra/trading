@@ -1,11 +1,13 @@
-pandas>=2.0
-numpy>=1.24
-matplotlib>=3.6
-pyarrow>=12.0
+# Upper bounds guard against silent breakage on major-version bumps; bump them
+# deliberately after testing, not implicitly on install day.
+pandas>=2.0,<3.0
+numpy>=1.24,<3.0
+matplotlib>=3.6,<4.0
+pyarrow>=12.0,<22.0
 # data sources (pick per market):
-yfinance>=0.2.40   # US & global prices, fundamentals, news
-akshare>=1.12      # China A-share & HK prices, fundamentals, 东方财富 news
-pykrx>=1.0         # Korea
+yfinance>=0.2.40,<1.0   # US & global prices, fundamentals, news
+akshare>=1.12,<2.0      # China A-share & HK prices, fundamentals, 东方财富 news
+pykrx>=1.0,<2.0         # Korea
 # optional ML model layer (random forest / gradient boosting); ridge needs neither:
-scikit-learn>=1.3  # optional
-lightgbm>=4.0      # optional
+scikit-learn>=1.3,<2.0  # optional
+lightgbm>=4.0,<5.0      # optional

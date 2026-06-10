@@ -7,13 +7,19 @@
 
 Caching: parquet files under .cache/ keyed by the request. Re-running a backtest
 doesn't re-hit the network. Delete the .cache folder to force a refresh.
+Open-ended requests (no explicit `end`) additionally key the cache by today's date,
+so yesterday's download can't silently serve today's session forever. Corrupt cache
+files are deleted and re-downloaded instead of raising.
 """
 from __future__ import annotations
 
 import hashlib
+import logging
 from pathlib import Path
 
 import pandas as pd
+
+log = logging.getLogger(__name__)
 
 from . import free, ibkr
 from .base import validate_ohlcv
@@ -37,11 +43,24 @@ def load(symbol: str, source: str = "yfinance", *, use_cache: bool = True,
     Claude dumped from the brokerage MCP.
     """
     if source == "ibkr":
+        # Local JSON dump -> no network, nothing to cache.
         return ibkr.from_mcp_json_file(symbol, **kwargs)
 
-    cache = _cache_key(symbol=symbol, source=source, **kwargs)
+    cache_kw = dict(symbol=symbol, source=source, **kwargs)
+    if not kwargs.get("end"):
+        # Open-ended request ("latest 2y"): without this, the first download would
+        # be served forever -- a daily review would silently run on stale prices.
+        cache_kw["asof"] = pd.Timestamp.today().strftime("%Y-%m-%d")
+    cache = _cache_key(**cache_kw)
     if use_cache and cache.exists():
-        return validate_ohlcv(pd.read_parquet(cache), name=f"cache:{symbol}")
+        try:
+            return validate_ohlcv(pd.read_parquet(cache), name=f"cache:{symbol}")
+        except Exception:  # noqa: BLE001  corrupt/partial cache -> refetch
+            log.warning("corrupt cache %s; deleting and re-downloading", cache, exc_info=True)
+            try:
+                cache.unlink()
+            except OSError:
+                pass
 
     if source == "yfinance":
         df = free.from_yfinance(symbol, **kwargs)
@@ -68,5 +87,6 @@ def load_many(symbols: list[str], source: str = "yfinance", **kwargs) -> dict[st
         try:
             out[s] = load(s, source=source, **kwargs)
         except Exception as e:  # noqa: BLE001
+            log.warning("[load_many] skipped %s: %s", s, e)
             print(f"[load_many] skipped {s}: {e}")
     return out

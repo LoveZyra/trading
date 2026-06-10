@@ -20,14 +20,17 @@ Everything is scored OUT-OF-SAMPLE so the leaderboard can't be gamed by overfitt
 """
 from __future__ import annotations
 
+import logging
 import math
 import random
 from dataclasses import dataclass, field
 
+log = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
 
-from . import optimize as opt, metrics as M, models as Mdl
+from . import optimize as opt, models as Mdl
 from .strategies import REGISTRY, multi_factor as mf
 from . import backtest as bt
 
@@ -71,15 +74,8 @@ def _reward(sharpe: float) -> float:
 # Search spaces
 # ----------------------------------------------------------------------------
 # Per rule-strategy family: a small, economically-sensible grid to sample from.
-RULE_SPACE = {
-    "ma_crossover": {"fast": [10, 20, 30], "slow": [50, 100, 150]},
-    "breakout": {"entry": [20, 40, 55], "exit": [10, 20]},
-    "ts_momentum": {"lookback": [60, 90, 120, 180]},
-    "macd_trend": {"fast": [8, 12], "slow": [21, 26], "signal": [9]},
-    "zscore_reversion": {"lookback": [10, 20, 30], "entry": [1.0, 1.5, 2.0]},
-    "bollinger_reversion": {"n": [10, 20, 30], "k": [1.5, 2.0, 2.5]},
-    "rsi_reversion": {"n": [7, 14, 21], "oversold": [20, 30]},
-}
+# Shared with run_backtest --walk-forward via scripts/param_grids.py.
+from .param_grids import PARAM_GRIDS as RULE_SPACE
 
 
 def _sample(grid: dict, rng: random.Random) -> dict:
@@ -136,6 +132,7 @@ def research_single(df: pd.DataFrame, iterations: int = 30, *, seed: int = 0,
             sh = wf.oos_stats.get("sharpe", float("nan"))
             ret = wf.oos_stats.get("total_return", float("nan"))
         except Exception:  # noqa: BLE001
+            log.debug("trial failed: %s %s", fam, params, exc_info=True)
             sh, ret = float("nan"), float("nan")
         bandit.update(fam, _reward(sh))
         trials.append(Trial(fam, params, sh, ret))
@@ -213,6 +210,7 @@ def research_portfolio(data: dict, iterations: int = 24, *, seed: int = 0,
                                                   commission_bps, slippage_bps)
                 sh, ret = stats.get("sharpe", float("nan")), stats.get("total_return", float("nan"))
             except Exception:  # noqa: BLE001
+                log.debug("factor trial failed: %s", wd, exc_info=True)
                 sh, ret = float("nan"), float("nan")
             trials.append(Trial("factor", wd, sh, ret))
             bandit.update(d, _reward(sh))
@@ -235,6 +233,7 @@ def research_portfolio(data: dict, iterations: int = 24, *, seed: int = 0,
             except ImportError:
                 sh, ret, ic = float("nan"), float("nan"), float("nan")  # lib missing -> skip
             except Exception:  # noqa: BLE001
+                log.debug("model trial failed: %s", md, exc_info=True)
                 sh, ret, ic = float("nan"), float("nan"), float("nan")
             trials.append(Trial(f"model:{md}", {"model": md}, sh, ret, {"ic": ic}))
             bandit.update(d, _reward(sh))

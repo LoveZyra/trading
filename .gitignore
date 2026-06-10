@@ -8,3 +8,9 @@
 /alpha-forge/tests/__pycache__
 /alpha-forge/tests/.pytest_cache
 /模板
+
+# generated artifacts
+alpha-forge/examples/output/
+alpha-forge/.cache/
+.pytest_cache/
+__pycache__/

@@ -13,7 +13,6 @@ Workflow:
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -29,14 +28,16 @@ def log_signals(records: list, path: str | Path) -> int:
     with open(path, "a", encoding="utf-8") as f:
         for r in records:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    return sum(1 for _ in open(path, encoding="utf-8"))
+    with open(path, encoding="utf-8") as f:
+        return sum(1 for _ in f)
 
 
 def load_log(path: str | Path) -> pd.DataFrame:
     path = Path(path)
     if not path.exists():
         return pd.DataFrame()
-    rows = [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
+    with open(path, encoding="utf-8") as f:
+        rows = [json.loads(l) for l in f if l.strip()]
     df = pd.DataFrame(rows)
     if "date" in df:
         df["date"] = pd.to_datetime(df["date"], errors="coerce")

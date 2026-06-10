@@ -15,8 +15,18 @@ Canonical contract
 
 Keeping the contract strict means a look-ahead bug or a misaligned index gets
 caught here, at the boundary, instead of silently poisoning a backtest.
+
+Timezone convention (project-wide)
+----------------------------------
+* OHLCV bars: tz-NAIVE timestamps in the exchange's local session time (what every
+  daily-bar source ships). Aware indexes are stripped here.
+* News / events / sentiment timestamps: UTC-AWARE (`pd.to_datetime(..., utc=True)`),
+  normalized at the adapter boundary (see data/news.py), because headlines mix
+  sources/timezones and feed time-decay weighting where a wrong offset shifts weights.
 """
 from __future__ import annotations
+
+import logging
 
 import pandas as pd
 
@@ -68,6 +78,21 @@ def validate_ohlcv(df: pd.DataFrame, *, name: str = "data") -> pd.DataFrame:
     df = df[~df.index.isna()]
     df = df[~df.index.duplicated(keep="last")].sort_index()
     df = df.dropna(subset=["close"])
+
+    # OHLC consistency: high must be the bar's max, low its min. Bad rows (vendor
+    # glitches) are dropped with a warning rather than silently feeding ATR /
+    # Donchian / true-range garbage.
+    px = df[["open", "high", "low", "close"]]
+    bad = (
+        (df["high"] < df["low"])
+        | (df["high"] < px.drop(columns="high").max(axis=1))
+        | (df["low"] > px.drop(columns="low").min(axis=1))
+    )
+    if bool(bad.any()):
+        logging.getLogger(__name__).warning(
+            "%s: dropping %d rows with inconsistent OHLC (high<low or high/low not extreme)",
+            name, int(bad.sum()))
+        df = df[~bad]
 
     if len(df) == 0:
         raise ValueError(f"{name}: no valid rows after cleaning")

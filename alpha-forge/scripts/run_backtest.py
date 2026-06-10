@@ -21,7 +21,6 @@ Run from the scripts/ directory (or with it on PYTHONPATH).
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -90,17 +89,10 @@ def main(argv=None):
     params = collect_params(args, StrategyCls)
 
     if args.walk_forward:
-        # Sensible default grid around the chosen strategy's main knobs.
-        grids = {
-            "ma_crossover": {"fast": [10, 20, 30], "slow": [50, 100, 150]},
-            "breakout": {"entry": [20, 40, 55], "exit": [10, 20]},
-            "ts_momentum": {"lookback": [60, 90, 120, 180]},
-            "macd_trend": {"fast": [8, 12], "slow": [21, 26], "signal": [9]},
-            "zscore_reversion": {"lookback": [10, 20, 30], "entry": [1.0, 1.5, 2.0]},
-            "bollinger_reversion": {"n": [10, 20, 30], "k": [1.5, 2.0, 2.5]},
-            "rsi_reversion": {"n": [7, 14, 21], "oversold": [20, 30]},
-        }
-        grid = grids[args.strategy]
+        # Sensible default grid around the chosen strategy's main knobs
+        # (single source of truth shared with autoresearch).
+        from scripts.param_grids import PARAM_GRIDS
+        grid = PARAM_GRIDS[args.strategy]
         res = opt.walk_forward(StrategyCls, df, grid, metric=args.metric,
                                commission_bps=args.commission_bps,
                                slippage_bps=args.slippage_bps)
@@ -126,7 +118,7 @@ def main(argv=None):
                               path=outdir / f"{stem}_{strat.name}.png")
         md = outdir / f"{stem}_{strat.name}.md"
         md.write_text(rpt.markdown_report(result, name=strat.name, benchmark=bench, params=params))
-        print("Saved chart -> "+str(png)+"  | report -> "+str(md))
+        print(f"Saved chart -> {png}  | report -> {md}")
 
 
 if __name__ == "__main__":

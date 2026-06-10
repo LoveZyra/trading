@@ -11,9 +11,28 @@ use information from a future bar.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-
+import numpy as np
 import pandas as pd
+
+
+def positions_from_signals(entries: pd.Series, exits: pd.Series, value: float = 1.0) -> pd.Series:
+    """Build a stateful position series from boolean entry/exit masks.
+
+    Entry bars set the position to `value`, exit bars set it to 0, everything in
+    between forward-fills the last state. Entries win when an entry and an exit fire
+    on the same bar. NaN comparisons evaluate False, so indicator warm-up periods
+    yield no signal (position 0) by construction.
+
+    This is THE safe way to express "enter at X, exit at Y" rules: writing
+    overlapping boolean masks straight into one Series (long entry, long exit, short
+    entry, short exit) lets a later mask silently overwrite an earlier one -- the
+    bug class where allow_short=True erased every long entry. Build the long and
+    short legs separately with this helper, then add them.
+    """
+    pos = pd.Series(np.nan, index=entries.index)
+    pos[exits.fillna(False).astype(bool)] = 0.0
+    pos[entries.fillna(False).astype(bool)] = value
+    return pos.ffill().fillna(0.0)
 
 
 class Strategy:

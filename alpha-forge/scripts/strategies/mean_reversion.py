@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from .. import indicators as ind
-from .base import Strategy
+from .base import Strategy, positions_from_signals
 
 
 class ZScoreReversion(Strategy):
@@ -24,13 +24,12 @@ class ZScoreReversion(Strategy):
 
     def generate_signal(self, df: pd.DataFrame) -> pd.Series:
         z = ind.zscore(df["close"], self.lookback)
-        pos = pd.Series(np.nan, index=df.index)
-        pos[z <= -self.entry] = 1.0
-        pos[z >= self.entry] = -1.0 if self.allow_short else 0.0
-        pos[z.abs() <= self.exit] = 0.0
-        pos = pos.ffill().fillna(0.0)
-        if not self.allow_short:
-            pos = pos.clip(lower=0.0)
+        # Long and short legs as separate entry/exit state machines (the masks
+        # |z|<=exit, z<=-entry, z>=entry are disjoint, but the helper keeps the
+        # pattern uniform across all reversion strategies).
+        pos = positions_from_signals(z <= -self.entry, z.abs() <= self.exit, 1.0)
+        if self.allow_short:
+            pos = pos + positions_from_signals(z >= self.entry, z.abs() <= self.exit, -1.0)
         return pos
 
 
@@ -44,12 +43,15 @@ class BollingerReversion(Strategy):
     def generate_signal(self, df: pd.DataFrame) -> pd.Series:
         b = ind.bollinger(df["close"], self.n, self.k)
         c = df["close"]
-        pos = pd.Series(np.nan, index=df.index)
-        pos[c <= b["lower"]] = 1.0
-        pos[c >= b["mid"]] = 0.0
+        # Long and short legs built independently, then added. Long entry
+        # (c<=lower) implies the short exit (c<=mid) and short entry (c>=upper)
+        # implies the long exit (c>=mid), so the legs can't overlap. The old
+        # flat-mask version zeroed shorts as soon as mid<=c<upper -- shorts barely
+        # lasted one bar instead of covering at the mid band.
+        pos = positions_from_signals(c <= b["lower"], c >= b["mid"], 1.0)
         if self.allow_short:
-            pos[c >= b["upper"]] = -1.0
-        return pos.ffill().fillna(0.0)
+            pos = pos + positions_from_signals(c >= b["upper"], c <= b["mid"], -1.0)
+        return pos
 
 
 class RSIReversion(Strategy):
@@ -63,13 +65,15 @@ class RSIReversion(Strategy):
 
     def generate_signal(self, df: pd.DataFrame) -> pd.Series:
         r = ind.rsi(df["close"], self.n)
-        pos = pd.Series(np.nan, index=df.index)
-        pos[r <= self.oversold] = 1.0
-        pos[r >= self.exit_level] = 0.0
+        # Separate long/short state machines (see positions_from_signals). The old
+        # single-mask version zeroed every r<=exit_level bar in short mode, which
+        # erased all long entries (r<=oversold) -- the strategy degenerated to
+        # short-only. Long entry implies short exit and vice versa, so adding the
+        # legs is safe.
+        pos = positions_from_signals(r <= self.oversold, r >= self.exit_level, 1.0)
         if self.allow_short:
-            pos[r >= self.overbought] = -1.0
-            pos[r <= self.exit_level] = 0.0
-        return pos.ffill().fillna(0.0)
+            pos = pos + positions_from_signals(r >= self.overbought, r <= self.exit_level, -1.0)
+        return pos
 
 
 def pair_spread(a: pd.Series, b: pd.Series, lookback: int = 60):
@@ -79,7 +83,11 @@ def pair_spread(a: pd.Series, b: pd.Series, lookback: int = 60):
     hedge ratio keeps it adaptive. Run a cointegration test (see references) before
     trusting any pair.
     """
-    hedge = (a.rolling(lookback).cov(b) / b.rolling(lookback).var())
+    # Guard: if B is flat over the window (A-share halt / consecutive limit days),
+    # var()==0 would make hedge inf and poison the whole spread/z-score. NaN instead:
+    # the z-score is NaN there, so no signal fires -- the safe behaviour.
+    b_var = b.rolling(lookback).var().replace(0, np.nan)
+    hedge = a.rolling(lookback).cov(b) / b_var
     spread = a - hedge * b
     z = ind.zscore(spread, lookback)
     return spread, z
@@ -99,8 +107,6 @@ class PairsTrading(Strategy):
     def generate_signal(self, df: pd.DataFrame) -> pd.Series:
         b = self._partner.reindex(df.index).ffill()
         _, z = pair_spread(df["close"], b, self.lookback)
-        pos = pd.Series(np.nan, index=df.index)
-        pos[z >= self.entry] = -1.0      # spread rich -> short A
-        pos[z <= -self.entry] = 1.0      # spread cheap -> long A
-        pos[z.abs() <= self.exit] = 0.0
-        return pos.ffill().fillna(0.0)
+        pos = positions_from_signals(z <= -self.entry, z.abs() <= self.exit, 1.0)
+        pos = pos + positions_from_signals(z >= self.entry, z.abs() <= self.exit, -1.0)
+        return pos

@@ -5,9 +5,8 @@ seaborn. Designed so Claude can drop the outputs straight into a deliverable.
 """
 from __future__ import annotations
 
+import math
 from pathlib import Path
-
-import pandas as pd
 
 from . import metrics as M
 
@@ -56,7 +55,7 @@ def markdown_report(result, *, name: str = "Strategy", benchmark=None,
         report honest about absent metrics instead of crashing (KeyError) or printing
         'nan%' — matching the skill's render-if-present contract."""
         v = d.get(key)
-        if v is None or (isinstance(v, float) and v != v):
+        if v is None or (isinstance(v, float) and math.isnan(v)):
             return "—"
         try:
             return format(v, spec)

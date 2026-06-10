@@ -1,0 +1,1 @@
+{"macro": {"score": -0.256, "vix": -0.122, "econ": -0.352, "geo": -0.219, "event": -0.5, "regime": "risk-off/避险", "imminent_events": [{"name": "cpi", "date": "2026-06-10", "days": 0}, {"name": "ppi", "date": "2026-06-11", "days": 1}]}, "market": {"score": 0.292, "index": 0.594, "breadth": 0.36, "macro": -0.256}}

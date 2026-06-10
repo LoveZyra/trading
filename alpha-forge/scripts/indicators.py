@@ -35,7 +35,12 @@ def rsi(s: pd.Series, n: int = 14) -> pd.Series:
     avg_gain = gain.ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
     avg_loss = loss.ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
     rs = avg_gain / avg_loss.replace(0, np.nan)
-    return 100 - 100 / (1 + rs)
+    out = 100 - 100 / (1 + rs)
+    # Edge cases the NaN-division hid: all-gain windows are genuinely RSI=100, but a
+    # completely FLAT window (no gains, no losses) is neutral 50, not overbought.
+    out[(avg_loss == 0) & (avg_gain > 0)] = 100.0
+    out[(avg_loss == 0) & (avg_gain == 0)] = 50.0
+    return out
 
 
 def macd(s: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:

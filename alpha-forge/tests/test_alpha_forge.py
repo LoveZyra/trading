@@ -257,7 +257,9 @@ def test_fundamentals_akshare_percent_to_fraction(monkeypatch):
     out = F.from_akshare("000063")
     assert abs(out["roe"] - 0.25) < 1e-9
     assert abs(out["gross_margin"] - 0.40) < 1e-9
-    assert abs(out["debt_to_equity"] - 0.60) < 1e-9
+    # 资产负债率 60% (debt/assets) must be CONVERTED to debt/equity = 0.6/0.4 = 1.5
+    # so it shares the canonical field's semantics with yfinance (debt/equity).
+    assert abs(out["debt_to_equity"] - 1.5) < 1e-9
     assert abs(out["revenue_growth"] - 0.12) < 1e-9
 
 

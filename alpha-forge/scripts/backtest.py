@@ -16,12 +16,25 @@ Design choices and WHY they matter
 """
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 
 from . import metrics as M
+
+
+def _validate_bt_args(lag, commission_bps, slippage_bps, periods_per_year, cost_model):
+    """Fail fast on nonsense arguments instead of silently producing fiction."""
+    if lag < 0:
+        raise ValueError(f"lag must be >= 0, got {lag} (negative lag = trading the past)")
+    if commission_bps < 0 or slippage_bps < 0:
+        raise ValueError("commission_bps / slippage_bps must be non-negative")
+    if periods_per_year <= 0:
+        raise ValueError(f"periods_per_year must be positive, got {periods_per_year}")
+    if cost_model not in ("linear", "sqrt"):
+        raise ValueError(f"cost_model must be 'linear' or 'sqrt', got {cost_model!r}")
 
 
 @dataclass
@@ -68,8 +81,13 @@ def backtest(prices: pd.DataFrame | pd.Series,
     capital : notional book size to translate fractional turnover into a participation
              rate against dollar volume (only used by cost_model='sqrt').
     """
+    _validate_bt_args(lag, commission_bps, slippage_bps, periods_per_year, cost_model)
     close = prices["close"] if isinstance(prices, pd.DataFrame) else prices
     close = close.astype(float)
+
+    if cost_model == "sqrt" and not (isinstance(prices, pd.DataFrame) and "volume" in prices.columns):
+        warnings.warn("cost_model='sqrt' needs a 'volume' column; falling back to "
+                      "linear costs (market impact NOT charged)", stacklevel=2)
 
     signal = signal.reindex(close.index).astype(float).fillna(0.0)
     if not allow_short:
@@ -125,14 +143,25 @@ def backtest_portfolio(panel_close: pd.DataFrame,
                        lag: int = 1,
                        commission_bps: float = 1.0,
                        slippage_bps: float = 1.0,
-                       periods_per_year: int = M.TRADING_DAYS) -> BacktestResult:
+                       periods_per_year: int = M.TRADING_DAYS,
+                       cost_model: str = "linear",
+                       panel_volume: pd.DataFrame | None = None,
+                       impact_coef: float = 10.0,
+                       capital: float = 1e6) -> BacktestResult:
     """Backtest a multi-asset weight panel (e.g. from multi_factor_signal).
 
     panel_close : wide close-price frame (index=date, cols=symbols).
     weights     : target weight per asset per bar, same shape. Rows need not sum to 1.
     Same lag + cost discipline as the single-asset engine, applied per asset then
     aggregated. The 'position' on the result is gross exposure (sum |w|).
+    cost_model='sqrt' adds per-asset square-root market impact (needs `panel_volume`,
+    a wide share-volume frame aligned to panel_close); see the single-asset engine.
+    The result's `trades` is a per-rebalance ledger (date, names changed, turnover, cost).
     """
+    _validate_bt_args(lag, commission_bps, slippage_bps, periods_per_year, cost_model)
+    if cost_model == "sqrt" and panel_volume is None:
+        warnings.warn("cost_model='sqrt' needs panel_volume; falling back to linear "
+                      "costs (market impact NOT charged)", stacklevel=2)
     panel_close = panel_close.sort_index()
     # ffill so a rebalance-only weight panel (rows only on rebalance dates, NaN between)
     # HOLDS its positions until the next rebalance instead of silently going flat. Dense
@@ -143,14 +172,30 @@ def backtest_portfolio(panel_close: pd.DataFrame,
     held = weights.shift(lag).fillna(0.0)
 
     gross = (held * asset_ret).sum(axis=1)
-    turnover = held.diff().abs().sum(axis=1).fillna(held.abs().sum(axis=1))
+    asset_turnover = held.diff().abs()
+    asset_turnover.iloc[0] = held.abs().iloc[0]
+    turnover = asset_turnover.sum(axis=1)
     cost_rate = (commission_bps + slippage_bps) / 1e4
     costs = turnover * cost_rate
+    if cost_model == "sqrt" and panel_volume is not None:
+        dollar_vol = (panel_close * panel_volume.reindex_like(panel_close)).replace(0, np.nan)
+        participation = (asset_turnover * capital / dollar_vol).clip(lower=0).fillna(0.0)
+        impact = (impact_coef / 1e4) * np.sqrt(participation)
+        costs = costs + (asset_turnover * impact).sum(axis=1)
     net = gross - costs
     equity = (1 + net).cumprod()
 
     exposure = held.abs().sum(axis=1)
-    n_trades = int((held.diff().abs().sum(axis=1) > 1e-9).sum())
+    n_trades = int((turnover > 1e-9).sum())
+
+    # Per-rebalance ledger (the old version always returned an empty frame).
+    reb_idx = turnover[turnover > 1e-9].index
+    ledger = pd.DataFrame({
+        "date": reb_idx,
+        "n_changed": (asset_turnover.loc[reb_idx] > 1e-9).sum(axis=1).values,
+        "turnover": turnover.reindex(reb_idx).values,
+        "cost": costs.reindex(reb_idx).values,
+    }).reset_index(drop=True)
 
     stats = M.summary(net, equity=equity, position=exposure,
                       periods_per_year=periods_per_year)
@@ -159,7 +204,7 @@ def backtest_portfolio(panel_close: pd.DataFrame,
     stats["turnover_annual"] = float(turnover.sum() / len(turnover) * periods_per_year) if len(turnover) else 0.0
 
     return BacktestResult(equity=equity, returns=net, position=exposure,
-                          signal=exposure, trades=pd.DataFrame(), stats=stats)
+                          signal=exposure, trades=ledger, stats=stats)
 
 
 def buy_and_hold(prices: pd.DataFrame | pd.Series,

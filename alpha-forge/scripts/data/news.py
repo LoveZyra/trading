@@ -42,8 +42,10 @@ def from_yfinance(symbol: str, limit: int = 30) -> list[dict]:
         c = n.get("content", n)  # newer yfinance nests under 'content'
         ts = n.get("providerPublishTime") or c.get("pubDate")
         try:
-            time = (pd.to_datetime(ts, unit="s") if isinstance(ts, (int, float))
-                    else pd.to_datetime(ts))
+            # Unix seconds are UTC by definition; ISO strings are parsed as UTC too
+            # (project convention: news timestamps are UTC-aware, see data/base.py).
+            time = (pd.to_datetime(ts, unit="s", utc=True) if isinstance(ts, (int, float))
+                    else pd.to_datetime(ts, utc=True))
         except Exception:  # noqa: BLE001
             time = pd.NaT
         items.append({
@@ -64,7 +66,20 @@ def from_akshare(symbol: str, limit: int = 50) -> list[dict]:
     rename = {"新闻标题": "title", "新闻内容": "summary", "发布时间": "time",
               "文章来源": "publisher", "新闻链接": "url"}
     df = df.rename(columns=rename)
-    df["time"] = pd.to_datetime(df.get("time"), errors="coerce")
+    # 东方财富 timestamps are Beijing local time -> localize then convert to UTC so
+    # time-decay weighting can mix CN and US headlines on one clock.
+    if "time" in df.columns:
+        ts = pd.to_datetime(df["time"], errors="coerce")
+        try:
+            df["time"] = ts.dt.tz_localize("Asia/Shanghai", ambiguous="NaT",
+                                           nonexistent="NaT").dt.tz_convert("UTC")
+        except (TypeError, AttributeError):   # already tz-aware / unexpected dtype
+            try:
+                df["time"] = ts.dt.tz_convert("UTC")
+            except (TypeError, AttributeError):
+                df["time"] = ts
+    else:
+        df["time"] = pd.NaT
     items = df.head(limit).to_dict("records")
     return _norm(items)
 
@@ -87,7 +102,8 @@ def from_json_file(path: str | Path) -> list[dict]:
             "title": it.get("title") or it.get("headline") or it.get("新闻标题"),
             "publisher": it.get("publisher") or it.get("source") or it.get("文章来源"),
             "time": pd.to_datetime(it.get("time") or it.get("publishedAt")
-                                   or it.get("date") or it.get("发布时间"), errors="coerce"),
+                                   or it.get("date") or it.get("发布时间"),
+                                   errors="coerce", utc=True),
             "url": it.get("url") or it.get("link") or it.get("新闻链接"),
             "summary": it.get("summary") or it.get("snippet") or it.get("description"),
         })

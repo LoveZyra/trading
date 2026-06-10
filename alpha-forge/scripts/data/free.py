@@ -49,8 +49,13 @@ def from_akshare(symbol: str, start: str | None = None, end: str | None = None,
     symbol: A-share code like '600519' or '000001'; HK code like '00700'.
     market: 'cn' for mainland A-share, 'hk' for Hong Kong.
     adjust: 'qfq' forward-adjusted (前复权, recommended), 'hfq' back-adjusted, '' raw.
+    yfinance-style suffixes ('.SS'/'.SZ'/'.HK') are stripped so suffixed watchlists
+    work with every adapter.
     """
     import akshare as ak
+
+    symbol = (str(symbol).upper().removesuffix(".SS").removesuffix(".SZ")
+              .removesuffix(".HK"))
 
     s = start.replace("-", "") if start else "20150101"
     e = end.replace("-", "") if end else pd.Timestamp.today().strftime("%Y%m%d")
@@ -67,8 +72,12 @@ def from_akshare(symbol: str, start: str | None = None, end: str | None = None,
 
 
 def from_pykrx(symbol: str, start: str | None = None, end: str | None = None) -> pd.DataFrame:
-    """Korean equities via pykrx. symbol is the 6-digit code, e.g. '005930' (Samsung)."""
+    """Korean equities via pykrx. symbol is the 6-digit code, e.g. '005930' (Samsung).
+    A yfinance-style suffix ('005930.KS' / '.KQ') is stripped, so suffixed watchlists
+    (which make the market unambiguous, see data/market.py) work with every adapter."""
     from pykrx import stock
+
+    symbol = str(symbol).upper().removesuffix(".KS").removesuffix(".KQ")
 
     s = start.replace("-", "") if start else "20150101"
     e = end.replace("-", "") if end else pd.Timestamp.today().strftime("%Y%m%d")

@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from .. import indicators as ind
-from .base import Strategy
+from .base import Strategy, positions_from_signals
 
 
 class MACrossover(Strategy):
@@ -29,7 +29,11 @@ class MACrossover(Strategy):
         s = getattr(ind, self.ma)(df["close"], self.slow)
         long = (f > s).astype(float)
         if self.allow_short:
-            return long * 2 - 1            # {0,1} -> {-1,+1}
+            sig = long * 2 - 1             # {0,1} -> {-1,+1}
+            # During MA warm-up f/s are NaN -> (NaN>NaN)=False -> long=0 -> sig=-1:
+            # a spurious short held for the first `slow` bars. Stay flat until both
+            # MAs exist.
+            return sig.where(f.notna() & s.notna(), 0.0)
         return long
 
 
@@ -45,17 +49,21 @@ class Breakout(Strategy):
         self.entry, self.exit, self.allow_short = entry, exit, allow_short
 
     def generate_signal(self, df: pd.DataFrame) -> pd.Series:
-        hi = df["high"].rolling(self.entry).max()
-        lo = df["low"].rolling(self.exit).min()
-        pos = pd.Series(np.nan, index=df.index)
-        pos[df["close"] >= hi.shift(1)] = 1.0       # break prior high -> long
-        pos[df["close"] <= lo.shift(1)] = 0.0       # break exit low  -> flat
+        c = df["close"]
+        hi = df["high"].rolling(self.entry).max().shift(1)   # entry-window high
+        lo = df["low"].rolling(self.exit).min().shift(1)     # exit-window low
+        # Long and short legs as separate state machines. The old flat-mask version
+        # ended with pos[c >= exit-window high] = 0, and since the exit-window high
+        # is always <= the entry-window high, EVERY long entry bar was overwritten
+        # with 0 -- allow_short=True degenerated to short-only.
+        pos = positions_from_signals(c >= hi, c <= lo, 1.0)
         if self.allow_short:
-            lo_s = df["low"].rolling(self.entry).min()
-            hi_s = df["high"].rolling(self.exit).max()
-            pos[df["close"] <= lo_s.shift(1)] = -1.0
-            pos[df["close"] >= hi_s.shift(1)] = 0.0
-        return pos.ffill().fillna(0.0)
+            lo_s = df["low"].rolling(self.entry).min().shift(1)   # entry-window low
+            hi_s = df["high"].rolling(self.exit).max().shift(1)   # exit-window high
+            # A new entry-window high (long entry) is also >= the exit-window high
+            # (short exit), and vice versa, so the legs cannot overlap.
+            pos = pos + positions_from_signals(c <= lo_s, c >= hi_s, -1.0)
+        return pos
 
 
 class TimeSeriesMomentum(Strategy):

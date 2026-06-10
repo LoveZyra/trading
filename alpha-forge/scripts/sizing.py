@@ -50,8 +50,13 @@ def risk_parity_weights(panel_close: pd.DataFrame, universe: list | None = None,
     """
     close = panel_close[universe] if universe else panel_close
     rets = close.pct_change()
-    idx = rebalance_index if rebalance_index is not None else close.resample("ME").last().index
-    idx = [d for d in idx if d in close.index]
+    if rebalance_index is not None:
+        idx = [d for d in rebalance_index if d in close.index]
+    else:
+        # last actual trading day per month -- calendar 'ME' labels silently skip
+        # ~28% of months on a trading-day index (see scripts/rebalance.py)
+        from .rebalance import rebalance_dates
+        idx = rebalance_dates(close.index, "ME")
     cols = close.columns
     out = pd.DataFrame(0.0, index=close.index, columns=cols)
 
@@ -96,4 +101,7 @@ def vol_target_scale(returns: pd.Series, target_vol: float = 0.10,
     """
     realized = returns.rolling(lookback).std(ddof=0) * np.sqrt(TRADING_DAYS)
     scale = (target_vol / realized.shift(1)).clip(upper=max_leverage)
-    return scale.fillna(0.0)
+    # Warm-up: no vol estimate yet -> neutral 1.0 (unscaled), NOT 0.0. fillna(0)
+    # forced the whole book flat for the first `lookback` bars of every backtest /
+    # walk-forward fold.
+    return scale.fillna(1.0)

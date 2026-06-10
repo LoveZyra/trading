@@ -36,6 +36,11 @@ def _nearest_above(price, levels):
     return min(cand) if cand else np.nan
 
 
+def _safe_round(v, nd: int = 2):
+    """round() for maybe-NaN levels: finite -> rounded float, else None."""
+    return round(float(v), nd) if v is not None and np.isfinite(v) else None
+
+
 def _pct(level, price):
     """Signed % move from current price to `level` (+涨幅 / −跌幅). None if N/A."""
     if level is None or not np.isfinite(level) or not price:
@@ -55,9 +60,14 @@ def trade_levels(df: pd.DataFrame, *, signal: float | None = None,
     Returns a dict of levels + per-level % moves (`pct`) + a 'bias' string.
     All prices rounded to 2dp.
     """
+    if len(df) < 60:
+        raise ValueError(f"trade_levels needs >=60 bars of history, got {len(df)} "
+                         "(Donchian-60 / MA50 / ATR would all be NaN)")
     c = df["close"]
     price = float(c.iloc[-1])
     atr = float(ind.atr(df).iloc[-1])
+    if not np.isfinite(atr) or not np.isfinite(price) or price <= 0:
+        raise ValueError("trade_levels: price/ATR not computable from the given frame")
     ma20 = float(ind.sma(c, 20).iloc[-1])
     ma50 = float(ind.sma(c, 50).iloc[-1])
     ma200 = float(ind.sma(c, 200).iloc[-1]) if len(c) >= 200 else np.nan
@@ -90,10 +100,8 @@ def trade_levels(df: pd.DataFrame, *, signal: float | None = None,
     target2 = round(entry + rr * risk, 2)
     reward_risk = round((target1 - entry) / risk, 2) if risk > 0 else np.nan
 
-    sup1 = round(sup1, 2) if np.isfinite(sup1) else None
-    sup2 = round(sup2, 2) if np.isfinite(sup2) else None
-    res1 = round(res1, 2) if np.isfinite(res1) else None
-    res2 = round(res2, 2) if np.isfinite(res2) else None
+    sup1, sup2 = _safe_round(sup1), _safe_round(sup2)
+    res1, res2 = _safe_round(res1), _safe_round(res2)
 
     # 每个价位相对现价的涨/跌幅(%)，正=上涨空间，负=回撤幅度
     pct = {

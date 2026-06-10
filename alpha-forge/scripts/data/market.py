@@ -31,20 +31,34 @@ MARKET_INDEX = {
 }
 
 
+_SUFFIX_MARKET = {"SS": "CN", "SZ": "CN", "BJ": "CN", "HK": "HK",
+                  "KS": "KR", "KQ": "KR", "T": "JP"}
+
+
 def market_of(symbol: str, default: str = "US") -> str:
-    """Best-effort market inference from a ticker. A-share 6-digit 60*/00*/30*/68*;
-    HK pure-numeric; JP 4-digit/####A; Korea 6-digit numeric handled via the watchlist
-    file it came from in practice. Falls back to US (most tickers are alpha US)."""
-    s = str(symbol).upper()
+    """Best-effort market inference from a ticker.
+
+    Exchange suffixes ('005930.KS', '600519.SS', '0700.HK', '7203.T') are
+    authoritative and checked first. Bare numeric codes are ambiguous: a 6-digit
+    code starting with 0/3 could be Shenzhen OR Korea ('005930' is Samsung, not a
+    Shenzhen name) -- prefer suffixed tickers or pass an explicit market where you
+    know it; bare 6-digit codes are read as A-share by convention here.
+    """
+    s = str(symbol).upper().strip()
+    if "." in s:                                  # exchange suffix wins
+        suf = s.rsplit(".", 1)[1]
+        if suf in _SUFFIX_MARKET:
+            return _SUFFIX_MARKET[suf]
     if s.isalpha():
         return "US"
     if s.isdigit():
-        if len(s) == 6 and s[0] in "0369":     # 600/000/300/688 ... A-share
+        if len(s) == 6 and s[0] in "0369":       # 600/000/300/688 ... A-share
             return "CN"
-        if len(s) <= 5:                          # 0700, 1928 ... HK
+        if len(s) <= 5:                           # 0700, 1928 ... HK
             return "HK"
-    if len(s) == 4 or (len(s) == 4 and s[-1].isalpha()) or s[:3].isdigit():
-        return "JP"                              # 7203, 285A ...
+        return default
+    if len(s) == 4 and (s.isdigit() or s[:3].isdigit() and s[-1].isalpha()):
+        return "JP"                               # 7203, 285A ...
     return default
 
 

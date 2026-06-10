@@ -8,7 +8,6 @@ the user's confirmation.
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 
 
 def shares_to_trade(target_weight: float, current_weight: float, account_value: float,
@@ -66,6 +65,9 @@ def order_plan(target_weight: float, current_weight: float, account_value: float
             days = int(np.ceil(aq / cap))
             capped = int(cap)
     per_day = capped
+    # Explicit day-by-day quantities (last day takes the remainder), so a plan that
+    # spans days is complete instead of only describing day 1.
+    day_shares = ([per_day] * (days - 1) + [aq - per_day * (days - 1)]) if days > 1 else [aq]
     sched = (vwap_schedule(per_day, volume_profile) if style == "vwap" and volume_profile
              else twap_schedule(per_day, n_slices))
     return {
@@ -73,7 +75,7 @@ def order_plan(target_weight: float, current_weight: float, account_value: float
         "order_style": order_style(spread_bps, urgency),
         "participation_cap": max_participation,
         "spread_over_days": days,
-        "per_day_shares": per_day, "child_orders": sched,
+        "per_day_shares": per_day, "day_shares": day_shares, "child_orders": sched,
         "note": (f"{side} {aq}股(${aq*price:,.0f})；" +
                  (f"超过{max_participation:.0%} ADV，分{days}天执行；" if days > 1 else "") +
                  f"{'TWAP' if style!='vwap' else 'VWAP'} {len([x for x in sched if x])}笔子单。仅为计划，需确认后下单。"),
