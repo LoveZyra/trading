@@ -263,20 +263,25 @@ def test_research_portfolio_smoke():
     assert any(np.isfinite(t.oos_sharpe) for t in rep.trials)
 
 
-def test_html_report_renders_sections():
+def test_html_report_renders_real_schema():
+    """Render with the REAL top-level schema keys (alerts/levels/holdings/...) and
+    check the payload survives into the embedded JSON with escaping intact."""
     from scripts import html_report as h
     out = h.render({
         "meta": {"title": "复盘", "date": "2026-06-10", "badge": "测试"},
-        "sections": [
-            {"type": "metrics", "title": "指标", "items": [
-                {"label": "Sharpe", "value": "1.23"}, {"label": "回撤", "value": "-8%"}]},
-            {"type": "table", "title": "持仓", "columns": ["代码", "信号"],
-             "rows": [["AAPL", "持有"], ["NVDA", "买入"]]},
-            {"type": "text", "title": "结论", "body": "一切正常 & <安全>"},
-        ]})
+        "alerts": [{"symbol": "NVDA", "headline": "财报临近", "action": "减仓"}],
+        "levels": [{"symbol": "AAPL", "price": 230.5, "buy_zone": [225, 228],
+                    "stop_loss": 219.0, "target1": 240.0}],
+        "holdings": "一切正常 & <安全>",
+        "conclusion": "观望",
+        "disclaimer": "机械量化研究，非投资建议",
+    })
     assert out.startswith("<!DOCTYPE html>")
-    for frag in ("复盘", "AAPL", "Sharpe"):
+    for frag in ("复盘", "NVDA", "AAPL", "230.5"):
         assert frag in out
+    body = out.split("<script", 1)[1]
+    assert "<安全>" not in body            # raw angle brackets must not survive
+    assert r"\u003c安全\u003e" in out      # they are unicode-escaped in the JSON
 
 
 def test_adapters_strip_exchange_suffix(monkeypatch):
