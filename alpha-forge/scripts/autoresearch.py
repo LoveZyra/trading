@@ -444,3 +444,93 @@ def ensemble_top_k(report: ResearchReport, df: pd.DataFrame, k: int = 3, *,
     blended = sum(sigs) / len(sigs)          # equal-weight average of target positions
     res = bt.backtest(df, blended, commission_bps=commission_bps, slippage_bps=slippage_bps)
     return res, members
+
+
+def strategy_glossary(report: "ResearchReport | None" = None, families: list | None = None) -> list:
+    """One-line intros for the strategy families a research run actually tested — feeds the
+    report's 「策略测试选择」 glossary so every tested strategy carries an explanation.
+
+    Pass a `report` to glossary just the families on its leaderboard (deduped, in rank
+    order), or an explicit `families` list, or neither to describe all known families.
+    Returns [{family, name, intro, edge}] (only families with a known description).
+    """
+    from .param_grids import STRATEGY_INFO
+    if families is None:
+        families = []
+        if report is not None and getattr(report, "leaderboard", None) is not None:
+            for t in report.leaderboard.itertuples():
+                d = getattr(t, "direction", None)
+                if d in STRATEGY_INFO and d not in families:
+                    families.append(d)
+        families = families or list(STRATEGY_INFO)
+    out = []
+    for f in families:
+        info = STRATEGY_INFO.get(f)
+        if info:
+            out.append({"family": f, "name": info["name"], "intro": info["intro"],
+                        "edge": info.get("edge", "")})
+    return out
+
+
+# ----------------------------------------------------------------------------
+# Deterministic, full-coverage screen of EVERY rule-strategy family
+# ----------------------------------------------------------------------------
+@dataclass
+class FamilyResult:
+    family: str
+    params: dict                 # best config found (native python types)
+    in_sharpe: float             # in-sample Sharpe of that config
+    oos_sharpe: float            # walk-forward OOS Sharpe (falls back to in-sample if too short)
+    returns: object              # per-bar returns Series of the best config
+    result: object               # the BacktestResult (equity / position / stats)
+
+
+def _native(v):
+    try:
+        x = float(v)
+        return int(x) if x == int(x) else round(x, 4)
+    except (TypeError, ValueError):
+        return v
+
+
+def screen_rule_strategies(df: pd.DataFrame, *, commission_bps: float = 1.0,
+                           slippage_bps: float = 1.0, metric: str = "sharpe") -> dict:
+    """Exhaustively grid-search EVERY rule-strategy family for its best config, backtest it, and
+    score THAT config out-of-sample (walk-forward, with the fold count adapted to the history so
+    it actually runs on short series; falls back to in-sample only when it truly can't).
+
+    This is the deterministic, full-coverage counterpart to `research_single`'s bandit sampling —
+    the SINGLE search path the report builder reuses, so strategy search is never re-implemented
+    elsewhere. Returns ``{family: FamilyResult}`` (params are real searched values, never a
+    placeholder).
+    """
+    out: dict = {}
+    for k, Cls in REGISTRY.items():
+        grid = RULE_SPACE.get(k)
+        try:
+            params: dict = {}
+            if grid:
+                tbl = opt.grid_search(Cls, df, grid, metric=metric,
+                                      commission_bps=commission_bps, slippage_bps=slippage_bps)
+                if len(tbl) and metric in tbl.columns and pd.notna(tbl.iloc[0].get(metric)):
+                    params = {pk: _native(tbl.iloc[0][pk]) for pk in grid if pk in tbl.columns}
+            strat = Cls(**params) if params else Cls()
+            r = bt.backtest(df, strat.generate_signal(df), commission_bps=commission_bps,
+                            slippage_bps=slippage_bps)
+            oos = None
+            if params:
+                combo = {pk: [pv] for pk, pv in params.items()}
+                for ns in (4, 3, 2):       # adapt folds to history (>=30 bars/fold needed)
+                    try:
+                        oos = float(opt.walk_forward(Cls, df, combo, n_splits=ns,
+                                                     metric=metric).oos_stats.get("sharpe"))
+                        break
+                    except Exception:  # noqa: BLE001
+                        continue
+            in_sh = round(float(r.stats.get("sharpe", float("nan"))), 2)
+            out[k] = FamilyResult(k, params, in_sh,
+                                  round(oos, 2) if (oos is not None and np.isfinite(oos)) else in_sh,
+                                  r.returns.fillna(0.0), r)
+        except Exception:  # noqa: BLE001
+            continue
+    return out

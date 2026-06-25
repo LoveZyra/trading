@@ -23,6 +23,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+TRADING_DAYS = 252            # default annualization for per-period (daily) Sharpe
+
 try:  # scipy is optional; fall back to a numpy normal CDF
     from scipy.stats import norm
     _ncdf = norm.cdf
@@ -161,3 +163,132 @@ def pbo_cscv(trial_returns: pd.DataFrame, n_splits: int = 10) -> dict:
     pbo = float((logits < 0).mean())
     return {"pbo": pbo, "n_combos": len(logits),
             "interpretation": ("overfitting likely" if pbo > 0.5 else "selection looks robust")}
+
+
+# ----------------------------------------------------------------------------
+# Combinatorial Purged CV — the OOS Sharpe DISTRIBUTION (not just one number)
+# ----------------------------------------------------------------------------
+def cpcv(returns: pd.Series, n_groups: int = 8, k_test: int = 2, *, embargo: int = 1,
+         periods_per_year: int = TRADING_DAYS) -> dict:
+    """Combinatorial Purged CV — distribution of OOS Sharpe for ONE strategy's returns.
+
+    Split the per-period return series into `n_groups` contiguous blocks; for every way of
+    choosing `k_test` blocks as the test set (C(n_groups, k_test) combinations), annualize
+    the Sharpe on the concatenated test blocks. An `embargo` of a few bars is dropped at
+    each block's leading edge to blunt autocorrelation leakage. A single OOS number hides
+    whether an edge is consistent or driven by one lucky window — this shows the spread
+    (median + 5/95% band + fraction of paths that are positive). López de Prado's CPCV;
+    2024-25 evidence shows it gives the lowest PBO / best DSR of the CV schemes.
+    """
+    import itertools
+    r = np.asarray(pd.Series(returns).dropna(), float)
+    n = len(r)
+    if n < n_groups * 3 or not (1 <= k_test < n_groups):
+        return {"n_paths": 0, "median": float("nan"), "note": "insufficient data"}
+    groups = np.array_split(np.arange(n), n_groups)
+    ann = np.sqrt(periods_per_year)
+    paths = []
+    for combo in itertools.combinations(range(n_groups), k_test):
+        idx = np.concatenate([groups[g][embargo:] if embargo and len(groups[g]) > embargo
+                              else groups[g] for g in combo])
+        seg = r[idx]
+        sd = seg.std(ddof=1)
+        if len(seg) >= 5 and sd > 0:
+            paths.append(float(seg.mean() / sd * ann))
+    if not paths:
+        return {"n_paths": 0, "median": float("nan"), "note": "no valid paths"}
+    arr = np.array(paths)
+    return {"n_paths": len(arr),
+            "median": round(float(np.median(arr)), 3), "mean": round(float(arr.mean()), 3),
+            "q05": round(float(np.percentile(arr, 5)), 3),
+            "q95": round(float(np.percentile(arr, 95)), 3),
+            "frac_positive": round(float((arr > 0).mean()), 3),
+            "sharpe_paths": [round(float(x), 3) for x in arr]}
+
+
+# ----------------------------------------------------------------------------
+# White's Reality Check / Hansen's SPA — data-snooping control for SELECTION
+# ----------------------------------------------------------------------------
+def _stationary_bootstrap_idx(n: int, block: int, rng) -> np.ndarray:
+    """Politis-Romano stationary-bootstrap index sequence (mean block length `block`)."""
+    p = 1.0 / max(block, 1)
+    idx = np.empty(n, dtype=int)
+    idx[0] = rng.integers(0, n)
+    for t in range(1, n):
+        idx[t] = rng.integers(0, n) if rng.random() < p else (idx[t - 1] + 1) % n
+    return idx
+
+
+def spa_test(trial_returns: pd.DataFrame, benchmark: float = 0.0, *, n_boot: int = 1000,
+             block: int = 10, seed: int = 0) -> dict:
+    """White's Reality Check & Hansen's SPA: is the BEST of many searched strategies truly
+    better than `benchmark` (per-period return), or just the luckiest draw of the search?
+
+    `trial_returns`: DataFrame, one column of aligned per-period returns per config. Uses
+    a stationary bootstrap on the (studentized) performance differentials. Returns the best
+    column, the test stat, and two p-values: `rc_p` (White, recenter-all = conservative)
+    and `spa_p` (Hansen consistent recentering = more powerful). p < ~0.05 ⇒ the winner
+    survives the data-snooping correction; a large p ⇒ the 'edge' is likely search luck.
+
+    Deflated Sharpe haircuts ONE strategy for the number of trials; SPA is the matching
+    test for 'I picked the best of K' — the right guard for strategy SELECTION.
+    """
+    M = trial_returns.dropna(how="any")
+    cols = list(M.columns)
+    n = len(M)
+    if len(cols) < 1 or n < 20:
+        return {"spa_p": float("nan"), "rc_p": float("nan"), "note": "insufficient data"}
+    d = M.values - benchmark                                   # (n,k); higher = better
+    wbar = d.mean(axis=0)
+    sd = d.std(axis=0, ddof=1)
+    sd = np.where(sd <= 0, np.nan, sd)
+    z = np.sqrt(n) * wbar / sd
+    T = float(np.nanmax(z))
+    best = cols[int(np.nanargmax(z))]
+    thr = -(sd / np.sqrt(n)) * np.sqrt(2 * np.log(np.log(n))) if n > 3 else np.full_like(sd, -np.inf)
+    g = np.where(wbar >= thr, wbar, 0.0)                       # Hansen consistent recentering
+    rng = np.random.default_rng(seed)
+    cnt_rc = cnt_spa = 0
+    for _ in range(n_boot):
+        bi = _stationary_bootstrap_idx(n, block, rng)
+        wb = d[bi].mean(axis=0)
+        if np.nanmax(np.sqrt(n) * (wb - wbar) / sd) >= T:
+            cnt_rc += 1
+        if np.nanmax(np.sqrt(n) * (wb - g) / sd) >= T:
+            cnt_spa += 1
+    spa_p = cnt_spa / n_boot
+    return {"best": best, "stat": round(T, 3), "n": n, "n_strategies": len(cols),
+            "rc_p": round(cnt_rc / n_boot, 4), "spa_p": round(spa_p, 4),
+            "interpretation": ("winner survives data-snooping (p<0.05)" if spa_p < 0.05
+                               else "best may be search luck — not significant after SPA")}
+
+
+def selection_robustness(trial_returns: pd.DataFrame, *, winner: str | None = None,
+                         periods_per_year: int = TRADING_DAYS) -> dict:
+    """One-stop "is the selected strategy real?" bundle over a searched set of configs.
+
+    `trial_returns`: DataFrame, one column of per-period returns per strategy/config.
+    Combines, in one dict for a report: the winner's DEFLATED SHARPE (n_trials=#configs),
+    PBO (CSCV), SPA/Reality-Check p-values, and a CPCV OOS-Sharpe DISTRIBUTION for the
+    winner. This is the honest verdict for the report's "策略测试选择 / 稳健性体检" block.
+    """
+    cols = list(trial_returns.columns)
+    if not cols:
+        return {"note": "no trials"}
+    if winner is None:
+        srs = {c: (trial_returns[c].mean() / s)
+               for c in cols if (s := trial_returns[c].std(ddof=1)) and s > 0}
+        winner = max(srs, key=srs.get) if srs else cols[0]
+    out: dict = {"winner": winner, "n_trials": len(cols)}
+    try:
+        out["deflated_sharpe"] = round(deflated_sharpe_ratio(
+            trial_returns[winner], n_trials=len(cols), all_trial_returns=trial_returns), 3)
+    except Exception:  # noqa: BLE001
+        out["deflated_sharpe"] = float("nan")
+    try:
+        out["pbo"] = round(pbo_cscv(trial_returns).get("pbo", float("nan")), 3)
+    except Exception:  # noqa: BLE001
+        out["pbo"] = float("nan")
+    out["spa"] = spa_test(trial_returns)
+    out["cpcv"] = cpcv(trial_returns[winner], periods_per_year=periods_per_year)
+    return out

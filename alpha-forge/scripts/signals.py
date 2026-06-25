@@ -107,23 +107,27 @@ def strength_score(df):
 
 
 def walkforward_signal(df):
-    try:
-        wf = opt.walk_forward(MACrossover, df, {"fast": [10, 20, 30], "slow": [50, 100, 150]},
-                              n_splits=4, metric="sharpe")
-        oos = None
-        try: oos = float(wf.oos_stats.get("sharpe"))
+    # Adapt the fold count to the available history: walk_forward needs >=30 bars/fold, so a
+    # fixed n_splits=4 silently N/As on ~120-bar histories. Use the MOST folds that fit.
+    wf = None
+    for nsplits in (4, 3, 2):
+        try:
+            wf = opt.walk_forward(MACrossover, df, {"fast": [10, 20, 30], "slow": [50, 100, 150]},
+                                  n_splits=nsplits, metric="sharpe")
+            break
         except Exception:
-            try: oos = float(getattr(wf, "oos_sharpe"))
-            except Exception: oos = None
-        sig = float(MACrossover(fast=20, slow=50).latest_signal(df))
-        lab = "做多" if sig > 0 else "做空" if sig < 0 else "空仓"
-        edge = oos is not None and oos > 0.3
-        tone = "pos" if (sig > 0 and edge) else ("neg" if sig < 0 else "neu")
-        return {"signal": lab, "oos_sharpe": round(oos, 2) if oos is not None else None, "tone": tone,
-                "label": lab + ("" if edge else "(OOS弱)"),
-                "detail": f"MA20/50 · OOS Sharpe {round(oos,2) if oos is not None else 'NA'} · 当前 {lab}"}
-    except Exception as e:
-        return {"label": "N/A", "tone": "neu", "detail": f"err:{str(e)[:60]}"}
+            continue
+    if wf is None:
+        return {"label": "N/A", "tone": "neu", "detail": "历史过短,无法做样本外验证(需 ~60+ 根)"}
+    try: oos = float(wf.oos_stats.get("sharpe"))
+    except Exception: oos = None
+    sig = float(MACrossover(fast=20, slow=50).latest_signal(df))
+    lab = "做多" if sig > 0 else "做空" if sig < 0 else "空仓"
+    edge = oos is not None and oos > 0.3
+    tone = "pos" if (sig > 0 and edge) else ("neg" if sig < 0 else "neu")
+    return {"signal": lab, "oos_sharpe": round(oos, 2) if oos is not None else None, "tone": tone,
+            "label": lab + ("" if edge else "(OOS弱)"),
+            "detail": f"MA20/50 · OOS Sharpe {round(oos,2) if oos is not None else 'NA'} · 当前 {lab}"}
 
 
 def regime_signal(df):
@@ -150,7 +154,8 @@ def regime_signal(df):
 
 def autoresearch_signal(df, iterations=8):
     try:
-        rep = AR.research_single(df, iterations=iterations, n_splits=4)
+        nsplits = max(2, min(4, len(df) // 35))   # adapt folds to history so OOS can compute
+        rep = AR.research_single(df, iterations=iterations, n_splits=nsplits)
         best = rep.best
         name = getattr(best, "direction", None) or getattr(best, "name", None) or (best.get("name") if isinstance(best, dict) else str(best))
         oos = None
@@ -194,7 +199,49 @@ def rule_signal(df):
             "detail": f"R/R {round(float(lv['reward_risk']),2)} · {'在买区' if inz else ('买区上方' if last>bz[1] else '买区下方')}"}
 
 
-def all_methods(df, *, iterations=8):
-    return {"m1": tech_rating(df), "m2": strength_score(df), "m3": walkforward_signal(df),
-            "m4": regime_signal(df), "m5": autoresearch_signal(df, iterations), "m6": breakout_signal(df),
-            "old": rule_signal(df)}
+def all_methods(df, *, iterations=8, heavy=True):
+    """6-lens signal read for one instrument.
+
+    heavy=False skips the two EXPENSIVE lenses (m3 walk-forward, m5 autoresearch — each
+    runs a full backtest search) and returns a 'skipped' placeholder for them. Use it for
+    multi-name 信号多法对照 tables, where running ~32 fits per name would make a 50-name
+    table take 10s+. Single-name reports should keep heavy=True for the full read.
+    """
+    skipped = {"label": "—", "tone": "neu", "detail": "(大规模筛选·已显式关闭)", "signal": "—"}
+    return {"m1": tech_rating(df), "m2": strength_score(df),
+            "m3": walkforward_signal(df) if heavy else dict(skipped),
+            "m4": regime_signal(df),
+            "m5": autoresearch_signal(df, iterations) if heavy else dict(skipped),
+            "m6": breakout_signal(df), "old": rule_signal(df)}
+
+
+# One-line intro per judging method — so the report's 「信号多法对照」 explains every lens.
+METHOD_INFO = {
+    "m1": {"name": "技术评级", "desc": "均线族 + 振荡器各投 -1/0/+1,综合成 5 档评级(TradingView 式)。"},
+    "m2": {"name": "技术强度分", "desc": "0–99 的多周期相对强度自评(SCTR 思路,单标的口径)。"},
+    "m3": {"name": "样本外择时", "desc": "MA20/50 趋势策略的 walk-forward 出样本 edge + 当前方向。"},
+    "m4": {"name": "regime 择时", "desc": "趋势/波动状态判定 + 建议敞口(高波/熊市自动降仓)。"},
+    "m5": {"name": "自动研究最优", "desc": "多策略自动搜索(样本外验证)选出的最优策略族 + OOS 夏普。"},
+    "m6": {"name": "突破/趋势", "desc": "价 vs SMA50/200 多头排列 + 近 20 日高点突破口径。"},
+    "old": {"name": "回踩买点(对照)", "desc": "旧规则:按盈亏比 + 是否在买区给做多/观望/做空(留作对照)。"},
+}
+_METHOD_ORDER = ["m1", "m2", "m3", "m4", "m5", "m6", "old"]
+
+
+def methods_report(data, *, symbols=None, iterations=8, heavy=None, title="信号多法对照"):
+    """Assemble the html_report `methods` dict from all_methods() across one or more names.
+
+    data: a single OHLCV df (one symbol) OR {name: df}. Every method row carries its
+    one-line `desc` (from METHOD_INFO) so the report EXPLAINS each lens, not just shows a
+    verdict. By default ALL six lenses run for EVERY name (heavy=True). Pass heavy=False
+    only for a LARGE universe where a full walk-forward + autoresearch search per name
+    would be slow — then the two expensive lenses (m3/m5) are skipped, with a note saying so.
+    """
+    uni = data if isinstance(data, dict) else {(symbols[0] if symbols else "标的"): data}
+    hv = True if heavy is None else heavy
+    per = {name: all_methods(df, iterations=iterations, heavy=hv) for name, df in uni.items()}
+    rows = [{"key": k, "m": METHOD_INFO[k]["name"], "desc": METHOD_INFO[k]["desc"]} for k in _METHOD_ORDER]
+    syms = [{"key": name, "name": name} for name in uni]
+    note = ("本表显式关闭了重型计算(heavy=False),「样本外择时 / 自动研究」两栏留空;默认全跑。"
+            if (not hv and len(uni) > 1) else None)
+    return {"title": title, "symbols": syms, "rows": rows, "data": per, "note": note}

@@ -341,3 +341,117 @@ def test_html_render_tolerates_missing_keys():
     from scripts import html_report as H
     html = H.render({"meta": {"title": "t", "report_type": "single"}})
     assert "<html" in html and "report-data" in html
+
+
+# ======================================================================== #
+#  Strategy / method introductions + signals perf flag
+# ======================================================================== #
+def test_signals_heavy_false_skips_expensive_lenses(ohlcv):
+    """heavy=False (explicit opt-off for large universes) leaves the two expensive lenses
+    (walk-forward, autoresearch) blank; heavy=True actually runs them."""
+    from scripts import signals as SG
+    light = SG.all_methods(ohlcv, heavy=False)
+    assert light["m3"]["label"] == "—" and light["m5"]["label"] == "—"
+    assert "关闭" in light["m3"]["detail"] and "关闭" in light["m5"]["detail"]
+    full = SG.all_methods(ohlcv, heavy=True, iterations=2)
+    assert full["m3"]["label"] != "—"                              # m3 really ran
+
+
+def test_methods_report_rows_carry_descriptions(ohlcv):
+    """Every 信号多法对照 row carries an intro; by default ALL lenses run (no silent skip)."""
+    from scripts import signals as SG
+    m = SG.methods_report({"AAA": ohlcv, "BBB": ohlcv})
+    assert m["rows"] and all(r.get("desc") for r in m["rows"])
+    assert {s["key"] for s in m["symbols"]} == {"AAA", "BBB"}
+    assert set(m["data"]) == {"AAA", "BBB"}
+    assert m["note"] is None                                       # full analysis by default
+    ml = SG.methods_report({"AAA": ohlcv, "BBB": ohlcv}, heavy=False)
+    assert ml["note"] and "heavy=False" in ml["note"]              # only explicit light mode opts off
+
+
+def test_strategy_glossary_covers_families():
+    """Every tested strategy family resolves to a one-line intro (keys aligned w/ grids)."""
+    from scripts import autoresearch as AR
+    gl = AR.strategy_glossary(families=["ts_momentum", "ma_crossover", "zscore_reversion"])
+    assert [g["family"] for g in gl] == ["ts_momentum", "ma_crossover", "zscore_reversion"]
+    assert all(g["intro"] and g["name"] for g in gl)
+    assert len(AR.strategy_glossary()) >= 7
+
+
+# ======================================================================== #
+#  CPCV (OOS distribution) + SPA / Reality Check  (validation.py upgrade)
+# ======================================================================== #
+def test_cpcv_distribution_separates_edge_from_noise():
+    from scripts import validation as V
+    rng = np.random.default_rng(7)
+    edge = pd.Series(rng.normal(0.0016, 0.01, 1200))      # real ann Sharpe ~1.4
+    noise = pd.Series(rng.normal(0.0, 0.01, 1200))
+    ce, cn = V.cpcv(edge), V.cpcv(noise)
+    assert ce["n_paths"] >= 20 and "q05" in ce and "q95" in ce
+    assert ce["median"] > 0.8 and ce["frac_positive"] > 0.8      # consistently positive
+    assert ce["median"] > cn["median"]                          # edge beats noise
+    assert 0.2 <= cn["frac_positive"] <= 0.8                     # noise ~ coin flip
+
+
+def test_spa_flags_real_edge_and_clears_noise():
+    """REGRESSION: SPA must call a real edge significant and a best-of-noise NOT."""
+    from scripts import validation as V
+    rng = np.random.default_rng(11)
+    real = pd.DataFrame({f"s{j}": rng.normal(0.0016 if j == 0 else 0.0, 0.01, 700) for j in range(8)})
+    pure = pd.DataFrame({f"s{j}": rng.normal(0.0, 0.01, 700) for j in range(8)})
+    sr = V.spa_test(real, n_boot=500)
+    sp = V.spa_test(pure, n_boot=500)
+    assert sr["best"] == "s0" and sr["spa_p"] < 0.1            # real edge survives snooping
+    assert sp["spa_p"] > 0.2                                    # best-of-noise is not significant
+
+
+def test_selection_robustness_bundle():
+    from scripts import validation as V
+    rng = np.random.default_rng(3)
+    trials = pd.DataFrame({f"s{j}": rng.normal(0.0015 if j == 0 else 0.0, 0.01, 700) for j in range(6)})
+    rob = V.selection_robustness(trials)
+    assert rob["winner"] == "s0" and rob["n_trials"] == 6
+    assert "deflated_sharpe" in rob and "pbo" in rob
+    assert "spa" in rob and "cpcv" in rob and rob["cpcv"]["n_paths"] > 0
+
+
+def test_html_render_is_nan_safe():
+    """REGRESSION: NaN/Inf must serialize as null, else the browser's JSON.parse throws
+    and the whole report blanks. (Python's json tolerates NaN, so this only bites live.)"""
+    import json
+    import re
+    from scripts import html_report as H
+    rep = {"meta": {"title": "t"},
+           "technical": {"level": {"price": 10.0, "rr": float("nan")}},
+           "methods": {"data": {"X": {"m5": {"oos_sharpe": float("inf")}}}}}
+    html = H.render(rep)
+    block = re.search(r'type="application/json">(.*?)</script>', html, re.S).group(1)
+    block = block.replace("\\u003c", "<").replace("\\u0026", "&").replace("\\u003e", ">")
+    assert "NaN" not in block and "Infinity" not in block
+    json.loads(block, parse_constant=lambda _x: (_ for _ in ()).throw(ValueError()))
+
+
+def test_build_research_full_structure(ohlcv):
+    """build_research is the SCHEMA-documented (previously MISSING) builder for the rich
+    research block: winner+triggers, leaderboard rows with per-strategy signal & buy/sell
+    triggers, a buy/sell-points trades chart, stats, glossary, and a robustness bundle."""
+    from scripts import build_research as BR
+    r = BR.build_research(ohlcv, name="X")
+    it = r["items"][0]
+    w = it["winner"]
+    assert w["strategy"] and w["triggers"]["buy"] and w["triggers"]["sell"]
+    lb = it["leaderboard"]
+    assert lb and all({"rank", "strategy", "signal", "buy", "sell", "win"} <= set(row) for row in lb)
+    tv = it["trades"]
+    assert len(tv["price"]) == len(ohlcv) and "buys" in tv and "hold" in tv
+    assert it["selection_text"] and it["stats"] and r["glossary"] and "robustness" in r
+    # REGRESSION: params must be REAL grid-searched values, never the "默认" placeholder the
+    # old hand-rolled builder emitted. The engine (screen_rule_strategies) searches every
+    # family, so on 400 bars the leaderboard carries concrete configs (e.g. "fast=20·slow=100").
+    assert any("=" in row["params"] for row in lb), "leaderboard params are all placeholders"
+    assert not all(row["params"] == "默认" for row in lb)
+    win_row = next(row for row in lb if row["win"])
+    assert w["params"] == win_row["params"]                       # winner card & its row agree
+    assert isinstance(w["params"], str) and w["params"]
+    assert all("oos_sharpe" in row for row in lb)
+    assert tv.get("date_start") and tv.get("date_end") and len(tv.get("dates", [])) == len(ohlcv)

@@ -280,7 +280,7 @@ md = rpt.markdown_report(result, name="MA crossover", benchmark=bench)
 markdown 再转 HTML——直接构造一个 **结构化 report dict** 交给 `scripts.html_report`，
 它会渲染成一份**机构研报风、自包含单文件、可打印为 PDF** 的 HTML：买卖点为核心
 （单标的=价格阶梯 止损→买区→现价→目标 + 盈亏比；组合=带内嵌 R/R 条的密集大表），
-配大盘/宏观评分计、三层情绪条、策略 vs 基准净值曲线，**红涨绿跌**（A股惯例）。
+配大盘/宏观评分计、三层情绪条、策略买卖点图（▲买/▼卖 + 持仓阴影 + 日期），**红涨绿跌**（A股惯例）。
 字段「给了就渲染、不给就跳过」，完整契约见 `SKILL` 同级的 **`SCHEMA.md`**。
 无需第三方库（CSS/JS 已内联，中文走系统字体回退）。
 

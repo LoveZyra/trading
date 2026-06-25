@@ -221,7 +221,7 @@ section.block:first-child{border-top:none}
 .rmtbl .rmwin td{font-weight:700}
 @media(max-width:760px){.rs-facts{grid-template-columns:repeat(2,1fr)}}
 .tc-legend{display:flex;gap:16px;align-items:center;font-size:11.5px;color:var(--ink-soft);padding:2px 2px 6px;flex-wrap:wrap}
-.tc-legend .hsw{display:inline-block;width:14px;height:10px;background:#2ecc71;opacity:.28;vertical-align:-1px;margin-right:4px}
+.tc-legend .hsw{display:inline-block;width:14px;height:10px;background:#b8923f;opacity:.40;vertical-align:-1px;margin-right:4px}
 .tc-legend .tc-now{margin-left:auto;font-weight:600;color:var(--ink)}
 .rs-cap{font-size:11.5px;color:var(--ink-soft);line-height:1.55;margin:8px 2px 0;background:#fbfaf7;border-left:3px solid var(--hair-2);padding:8px 12px}
 .rs-trig{display:flex;gap:14px;flex-wrap:wrap;align-items:center;background:#eef2f7;border:1px solid #d7e0ea;border-radius:4px;padding:8px 12px;margin:0 0 11px;font-size:12px;line-height:1.5}
@@ -464,11 +464,25 @@ _JS = r"""
   "use strict";
 
   /* ---- tiny DOM helper ------------------------------------------------- */
+  // Minimal HTML hygiene for DATA-derived strings. Reports are built by the model from
+  // curated data, but news / web / AI text can carry stray markup. This strips the
+  // genuinely dangerous constructs (script & friends, inline on*= handlers, javascript:
+  // URLs) while leaving the benign inline formatting the schema documents (<b>/<i>/<span
+  // class=…>) intact. Code-controlled markup (the SVG charts) bypasses this via `raw:`.
+  function safeHtml(s) {
+    if (s == null) return "";
+    s = String(s)
+      .replace(/<\s*\/?\s*(script|style|iframe|object|embed|link|meta|svg|img|video|audio|base|form|input)\b[^>]*>/gi, "")
+      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      .replace(/(href|src)\s*=\s*("\s*javascript:[^"]*"|'\s*javascript:[^']*'|javascript:[^\s>]+)/gi, '$1="#"');
+    return s;
+  }
   function el(tag, attrs, children) {
     const n = document.createElement(tag);
     if (attrs) for (const k in attrs) {
       if (k === "class") n.className = attrs[k];
-      else if (k === "html") n.innerHTML = attrs[k];
+      else if (k === "html") n.innerHTML = safeHtml(attrs[k]);   // data -> sanitized
+      else if (k === "raw") n.innerHTML = attrs[k];              // code-controlled markup (SVG)
       else if (k === "style") n.setAttribute("style", attrs[k]);
       else if (attrs[k] != null) n.setAttribute(k, attrs[k]);
     }
@@ -714,8 +728,9 @@ _JS = r"""
     const tgtHi = L.target2 != null ? L.target2 : L.target;
     const lo = Math.min(L.stop, L.buy_low != null ? L.buy_low : L.stop);
     const hi = Math.max(tgtHi, L.price);
+    const span = (hi - lo) || 1;          // guard degenerate stop==price==target (no NaN%)
     const pad = 7;
-    const map = function (p) { return clampPos(pad + (p - lo) / (hi - lo) * (100 - 2 * pad)); };
+    const map = function (p) { return clampPos(pad + (p - lo) / span * (100 - 2 * pad)); };
     const buyMid = L.buy_low != null && L.buy_high != null ? (L.buy_low + L.buy_high) / 2 : L.buy_low;
 
     const parts = [el("div", { class: "axis" })];
@@ -869,38 +884,6 @@ _JS = r"""
     ]);
   }
 
-  /* ---- equity / benchmark chart --------------------------------------- */
-  function equityChart(bt) {
-    const W = 1000, H = 300, pl = 6, pr = 6, pt = 14, pb = 24;
-    const eq = bt.equity || {};
-    const A = eq.strategy || [], B = eq.benchmark || [];
-    const n = Math.max(A.length, B.length);
-    if (n < 2) return null;
-    let mn = Infinity, mx = -Infinity;
-    [A, B].forEach(function (s) { s.forEach(function (v) { if (v < mn) mn = v; if (v > mx) mx = v; }); });
-    const px = function (i) { return pl + i / (n - 1) * (W - pl - pr); };
-    const py = function (v) { return pt + (1 - (v - mn) / (mx - mn || 1)) * (H - pt - pb); };
-    const path = function (s) { return s.map(function (v, i) { return (i ? "L" : "M") + px(i).toFixed(1) + " " + py(v).toFixed(1); }).join(" "); };
-    const grid = [];
-    for (let g = 0; g <= 4; g++) { const y = pt + g / 4 * (H - pt - pb); grid.push('<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y + '" y2="' + y + '" stroke="#e7e3d8" stroke-width="1"/>'); }
-    const svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" style="width:100%;height:230px;display:block">' +
-      grid.join("") +
-      (B.length ? '<path d="' + path(B) + '" fill="none" stroke="#9aa0aa" stroke-width="2" stroke-dasharray="5 4"/>' : "") +
-      '<path d="' + path(A) + '" fill="none" stroke="#1b3a5b" stroke-width="2.5"/>' +
-      '</svg>';
-    const stats = (bt.stats || []).map(function (s) { return el("div", { class: "cs", html: s.k + "<b>" + s.v + "</b>" }); });
-    return el("div", { class: "chart-card" }, [
-      el("div", { class: "chart-head" }, [
-        el("div", { class: "legend" }, [
-          el("span", null, [el("i", { style: "background:#1b3a5b" }), bt.strategy_label || "策略"]),
-          el("span", null, [el("i", { style: "background:#9aa0aa" }), bt.benchmark_label || "买入持有"])
-        ])
-      ]),
-      el("div", { html: svg }),
-      stats.length ? el("div", { class: "chart-stats" }, stats) : null
-    ]);
-  }
-
   /* ---- generic prose / groups ----------------------------------------- */
   function proseBlock(p) {
     if (typeof p === "string") return el("div", { class: "prose", html: p });
@@ -1042,21 +1025,23 @@ _JS = r"""
     [0, 0.5, 1].forEach(function (g, gi) { var y = ptp + g * (H - ptp - pb);
       pr2.push('<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y + '" y2="' + y + '" stroke="#e7e3d8" stroke-width="1"/>');
       pr2.push('<text x="' + (pl - 6) + '" y="' + (y + 3.5) + '" text-anchor="end" font-size="11" fill="#8a8474">' + fmt(labs[gi]) + '</text>'); });
-    (t.hold || []).forEach(function (sp) { var x1 = X(sp[0]), x2 = X(sp[1]); pr2.push('<rect x="' + x1.toFixed(1) + '" y="' + ptp + '" width="' + Math.max(0.5, x2 - x1).toFixed(1) + '" height="' + (H - ptp - pb) + '" fill="#2ecc71" opacity="0.12"/>'); });
+    (t.hold || []).forEach(function (sp) { var x1 = X(sp[0]), x2 = X(sp[1]); pr2.push('<rect x="' + x1.toFixed(1) + '" y="' + ptp + '" width="' + Math.max(0.5, x2 - x1).toFixed(1) + '" height="' + (H - ptp - pb) + '" fill="#b8923f" opacity="0.16"/>'); });
     pr2.push('<path d="' + P.map(function (v, i) { return (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1); }).join(" ") + '" fill="none" stroke="#222" stroke-width="1.5"/>');
-    (t.buys || []).forEach(function (i) { var x = X(i), y = Y(P[i]); pr2.push('<polygon points="' + x + ',' + (y - 10) + ' ' + (x - 6.5) + ',' + (y + 3) + ' ' + (x + 6.5) + ',' + (y + 3) + '" fill="#1a9850" stroke="#fff" stroke-width="0.8"/>'); });
-    (t.sells || []).forEach(function (i) { var x = X(i), y = Y(P[i]); pr2.push('<polygon points="' + x + ',' + (y + 10) + ' ' + (x - 6.5) + ',' + (y - 3) + ' ' + (x + 6.5) + ',' + (y - 3) + '" fill="#d73027" stroke="#fff" stroke-width="0.8"/>'); });
+    var dlab = (t.dates && (t.buys || []).length + (t.sells || []).length <= 16);   // skip labels if too crowded
+    function dstr(i) { var s = t.dates && t.dates[i] ? String(t.dates[i]) : ""; return s.length >= 10 ? s.slice(5) : s; }  // YYYY-MM-DD -> MM-DD
+    (t.buys || []).forEach(function (i) { var x = X(i), y = Y(P[i]); pr2.push('<polygon points="' + x + ',' + (y - 10) + ' ' + (x - 6.5) + ',' + (y + 3) + ' ' + (x + 6.5) + ',' + (y + 3) + '" fill="#c0392b" stroke="#fff" stroke-width="0.8"/>'); if (dlab) pr2.push('<text x="' + x.toFixed(1) + '" y="' + (y + 16) + '" text-anchor="middle" font-size="9.5" fill="#c0392b">' + dstr(i) + '</text>'); });
+    (t.sells || []).forEach(function (i) { var x = X(i), y = Y(P[i]); pr2.push('<polygon points="' + x + ',' + (y + 10) + ' ' + (x - 6.5) + ',' + (y - 3) + ' ' + (x + 6.5) + ',' + (y - 3) + '" fill="#147a43" stroke="#fff" stroke-width="0.8"/>'); if (dlab) pr2.push('<text x="' + x.toFixed(1) + '" y="' + (y - 12) + '" text-anchor="middle" font-size="9.5" fill="#147a43">' + dstr(i) + '</text>'); });
     pr2.push('<circle cx="' + X(n - 1) + '" cy="' + Y(P[n - 1]) + '" r="4" fill="#111"/>');
     if (t.date_start) pr2.push('<text x="' + pl + '" y="' + (H - 5) + '" font-size="11" fill="#8a8474">' + t.date_start + '</text>');
     if (t.date_end) pr2.push('<text x="' + (W - pr) + '" y="' + (H - 5) + '" text-anchor="end" font-size="11" fill="#8a8474">' + t.date_end + '</text>');
     var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block">' + pr2.join("") + '</svg>';
     var legend = el("div", { class: "tc-legend" }, [
-      el("span", { html: '<b style="color:#1a9850">▲</b> 买入' }),
-      el("span", { html: '<b style="color:#d73027">▼</b> 卖出' }),
+      el("span", { html: '<b style="color:#c0392b">▲</b> 买入' }),
+      el("span", { html: '<b style="color:#147a43">▼</b> 卖出' }),
       el("span", { html: '<i class="hsw"></i> 持仓期' }),
       t.now_label ? el("span", { class: "tc-now", html: t.now_label }) : null
     ]);
-    return el("div", { class: "chart-card" }, [legend, el("div", { html: svg })]);
+    return el("div", { class: "chart-card" }, [legend, el("div", { raw: svg })]);
   }
   function researchSection(r) {
     var kids = (r.items || []).map(function (it) {
@@ -1077,8 +1062,8 @@ _JS = r"""
       var trig = tg ? el("div", { class: "rs-trig" }, [
         el("span", { class: "rs-trig-h" }, "具体买卖点"),
         el("span", { html: "现在 · <b>" + (tg.action || w.signal || "—") + "</b>" }),
-        tg.sell ? el("span", { html: "🔻 卖出/离场:<b>" + tg.sell + "</b>" }) : null,
-        tg.buy ? el("span", { html: "🔺 买入/回补:<b>" + tg.buy + "</b>" }) : null
+        tg.sell ? el("span", { html: "<b style='color:#147a43'>▼</b> 卖出/离场:<b>" + tg.sell + "</b>" }) : null,
+        tg.buy ? el("span", { html: "<b style='color:#c0392b'>▲</b> 买入/回补:<b>" + tg.buy + "</b>" }) : null
       ]) : null;
       var sel = it.selection_text ? el("div", { class: "rs-sel", html: "<b>搜索过程(bandit):</b> " + it.selection_text }) : null;
       var lb = null;
@@ -1102,11 +1087,20 @@ _JS = r"""
       var chart = null;
       if (it.trades) {
         var statsrow = (it.stats || []).length ? el("div", { class: "chart-stats" }, it.stats.map(function (sx) { return el("div", { class: "cs", html: sx.k + "<b>" + sx.v + "</b>" }); })) : null;
-        var cap = el("div", { class: "rs-cap", html: "图说:实线=股价" + (it.trades.logy ? "(对数轴)" : "") + ";<b style='color:#1a9850'>▲买入</b> <b style='color:#d73027'>▼卖出</b> 绿阴影=持仓期。下方数字 <b>策略收益</b>=这套规则的总收益,<b>买入持有</b>=一直拿着不动的总收益(常更高);本策略赢在<b>回撤更小/夏普更高</b>,不是赢在绝对收益。" });
+        var cap = el("div", { class: "rs-cap", html: "图说:实线=股价" + (it.trades.logy ? "(对数轴)" : "") + ";<b style='color:#c0392b'>▲买入</b> <b style='color:#147a43'>▼卖出</b> 金色阴影=持仓期。下方数字 <b>策略收益</b>=这套规则的总收益,<b>买入持有</b>=一直拿着不动的总收益(常更高);本策略赢在<b>回撤更小/夏普更高</b>,不是赢在绝对收益。" });
         chart = el("div", null, [el("div", { class: "rs-sub" }, "② 买卖点与持仓(冠军策略在价格上的进出)"), tradesChart(it.trades), statsrow, cap]);
       }
       return el("div", { class: "rs-item" }, [head, facts, trig, sel, lb, chart].filter(Boolean));
     });
+    if (r.glossary && r.glossary.length) {
+      kids.unshift(el("div", { class: "rs-gloss" }, [
+        el("div", { class: "rs-sub" }, "📖 策略方法说明 · 本次测试涵盖的策略族"),
+        el("ul", { style: "margin:6px 0 16px;padding-left:18px;font-size:12.5px;line-height:1.75;color:var(--ink-soft)" },
+          r.glossary.map(function (g) {
+            return el("li", null, [el("b", null, (g.name || g.family) + "："), (g.intro || "") + (g.edge ? " " + g.edge : "")]);
+          }))
+      ]));
+    }
     if (r.note) kids.push(el("p", { class: "p-note", style: "margin-top:4px", html: r.note }));
     return el("div", null, kids);
   }
@@ -1169,7 +1163,6 @@ _JS = r"""
     }
 
     if (data.levels) add(data.levels_title || "🎯 建议买卖点", null, levelsTable(data.levels, { hint: data.levels_hint }));
-    if (data.backtest) { const c = equityChart(data.backtest); if (c) add(data.backtest.title || "策略回测", data.backtest.head_note || null, c); }
     if (data.sentiment) add(data.sentiment.title || "🗞 三层时效情绪", data.sentiment.composite != null ? "复合 " + scoreStr(data.sentiment.composite) : null, sentiment(data.sentiment));
     if (data.portfolio_health) add(data.portfolio_health.title || "🧩 组合体检", null, portfolioHealth(data.portfolio_health));
     if (data.holdings) add("你的持仓", null, proseBlock(data.holdings));
@@ -1204,11 +1197,26 @@ def _title(report: dict) -> str:
     return meta.get("title") or "量化分析报告"
 
 
+def _json_safe(obj):
+    """Recursively replace non-finite floats (NaN / ±Inf) with None. Python's json.dumps
+    emits bare NaN/Infinity by default — invalid JSON that the BROWSER's JSON.parse THROWS
+    on, blanking the entire report. Any metric that came back NaN must serialize as null.
+    Also normalizes numpy float subclasses to plain float."""
+    import math
+    if isinstance(obj, float):
+        return float(obj) if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
 def render(report: dict) -> str:
     """结构化 report dict -> 一份完整、自包含、带样式的 HTML 字符串。"""
     # 完整转义：< > & 防 </script> 变体与 HTML 注入；U+2028/2029 是 JS 字符串里
-    # 非法的行分隔符，会让内嵌脚本抛 SyntaxError。
-    data = (_json.dumps(report, ensure_ascii=False)
+    # 非法的行分隔符，会让内嵌脚本抛 SyntaxError。NaN/Inf 先转 null,否则浏览器 JSON.parse 抛错。
+    data = (_json.dumps(_json_safe(report), ensure_ascii=False)
             .replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
             .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
     return (
