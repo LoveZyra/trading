@@ -57,6 +57,11 @@ def validate_factor(func, df: pd.DataFrame, *, tol: float = 1e-8) -> FactorCheck
     is NaN (it needed a bar >=K) or the values differ, the factor peeked at the
     future. (We must NOT dropna, since look-ahead shows up exactly at the boundary
     positions a dropna would discard.)
+
+    We probe several cut points (50%, 70%, 90% of length), not one. A factor that only
+    peeks a few bars ahead, or that conditionally looks ahead late in the series, can
+    slip past a single cut at 60% but gets caught at one of the others — the boundary
+    is where look-ahead shows up, so testing several boundaries is much harder to fool.
     """
     msgs = []
     full = func(df)
@@ -64,29 +69,41 @@ def validate_factor(func, df: pd.DataFrame, *, tol: float = 1e-8) -> FactorCheck
         return FactorCheck(False, 1.0, 0, ["factor must return a pd.Series"])
     full = full.reindex(df.index)
 
-    K = max(30, int(len(df) * 0.6))
-    trunc = func(df.iloc[:K]).reindex(df.index[:K])
-    overlap = full.iloc[:K]
-    mask = overlap.notna()
-    trunc_aligned = trunc.reindex(overlap.index)
+    n = len(df)
+    cut_points = sorted({max(30, int(n * f)) for f in (0.5, 0.7, 0.9)})
     causal = True
-    if mask.sum() == 0:
-        msgs.append("could not establish overlap for causality check (too few values)")
-    else:
-        leaked_to_nan = int((mask & trunc_aligned.isna()).sum())
-        diffs = (overlap[mask] - trunc_aligned[mask]).abs()
+    checked_any = False
+    worst_leak, worst_diff, worst_K = 0, 0.0, None
+    for K in cut_points:
+        if K >= n:        # need at least one future bar removed for the test to bite
+            continue
+        trunc = func(df.iloc[:K]).reindex(df.index[:K])
+        overlap = full.iloc[:K]
+        mask = overlap.notna()
+        if mask.sum() == 0:
+            continue
+        checked_any = True
+        leaked_to_nan = int((mask & trunc.reindex(overlap.index).isna()).sum())
+        diffs = (overlap[mask] - trunc.reindex(overlap.index)[mask]).abs()
         max_diff = float(diffs.max()) if len(diffs.dropna()) else 0.0
-        causal = (leaked_to_nan == 0) and (max_diff <= tol)
-        if not causal:
-            why = []
-            if leaked_to_nan:
-                why.append(f"{leaked_to_nan} past values became undefined when future bars "
-                           f"were removed (factor needs future data)")
-            if max_diff > tol:
-                why.append(f"past values shifted by up to {max_diff:.2e}")
-            msgs.append("NOT CAUSAL: " + "; ".join(why) + " -> the factor is looking ahead. Fix it.")
-        else:
-            msgs.append("causality check passed (past values stable when future appended)")
+        if leaked_to_nan or max_diff > tol:
+            causal = False
+            if leaked_to_nan >= worst_leak and max_diff >= worst_diff:
+                worst_leak, worst_diff, worst_K = leaked_to_nan, max_diff, K
+    if not checked_any:
+        msgs.append("could not establish overlap for causality check (too few values)")
+    elif not causal:
+        why = []
+        if worst_leak:
+            why.append(f"{worst_leak} past values became undefined when future bars "
+                       f"were removed (factor needs future data)")
+        if worst_diff > tol:
+            why.append(f"past values shifted by up to {worst_diff:.2e}")
+        msgs.append(f"NOT CAUSAL (cut@{worst_K}): " + "; ".join(why) +
+                    " -> the factor is looking ahead. Fix it.")
+    else:
+        msgs.append(f"causality check passed at {len(cut_points)} cut points "
+                    "(past values stable when future appended)")
 
     nan_ratio = float(full.isna().mean())
     coverage = int(full.notna().sum())

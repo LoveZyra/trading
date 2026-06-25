@@ -12,11 +12,20 @@ What's native here vs. the paper:
     the loop does the bookkeeping and honest OOS scoring; you supply the ideas.
   * "Development" = the existing strategy/factor/model code; nothing is hand-rolled
     per run.
-  * "Feedback" = walk-forward / cross-sectional OOS metrics (never in-sample).
+  * "Feedback" = out-of-sample metrics. HOW each driver stays honest:
+      - research_single: walk-forward OOS per trial (select on train, score on test).
+      - research_portfolio / cooptimize_factor_model: the search runs only on a TRAIN
+        slice; the single winner is then re-scored on a held-out TEST tail it never saw
+        during selection (`holdout_sharpe`). That tail is the number to trust.
   * The scheduler is a UCB1 multi-armed bandit over directions, exactly as the paper
     uses a bandit to balance exploration vs. exploitation across research avenues.
 
-Everything is scored OUT-OF-SAMPLE so the leaderboard can't be gamed by overfitting.
+Why the train/test split matters: searching hard *creates* false positives. If you
+score every factor-weight blend on the full history and keep the best, you've simply
+curve-fit to noise. Confining the search to a train slice and judging the winner on an
+untouched tail is what makes the leaderboard's headline number trustworthy. For an
+extra multiple-testing haircut on the winner, pass its returns to
+`validation.deflated_sharpe_ratio(n_trials=<#trials>)`.
 """
 from __future__ import annotations
 
@@ -100,8 +109,12 @@ class ResearchReport:
 
     def __repr__(self):
         b = self.best
+        hold = ""
+        h = b.extra.get("holdout_sharpe", float("nan"))
+        if np.isfinite(h):
+            hold = f" | holdout(OOS) sharpe={h:.2f} ret={b.extra.get('holdout_return', float('nan')):+.1%}"
         return (f"ResearchReport(best={b.direction} {b.params} "
-                f"OOS sharpe={b.oos_sharpe:.2f} ret={b.oos_return:+.1%}; "
+                f"select sharpe={b.oos_sharpe:.2f} ret={b.oos_return:+.1%}{hold}; "
                 f"{len(self.trials)} trials)")
 
 
@@ -169,21 +182,80 @@ def _score_factor_weights(data, weights_dict, fundamentals_panel, sentiment_by_s
     return res.stats, w
 
 
+def _split_data(data: dict, oos_frac: float):
+    """Split each symbol's history at one common date: search on `train`, judge the
+    winner on the held-out `test` tail. Returns (train, test); test is None when there
+    isn't enough history to carve an honest holdout (caller then scores on full data
+    and the holdout is simply reported as NaN)."""
+    if not (0.0 < oos_frac < 0.9):
+        return data, None
+    panel = mf.build_panel(data, "close")
+    if len(panel) < 80:
+        return data, None
+    split = panel.index[int(len(panel) * (1 - oos_frac))]
+    train = {s: df[df.index < split] for s, df in data.items()}
+    test = {s: df[df.index >= split] for s, df in data.items()}
+    if (min((len(v) for v in train.values()), default=0) < 40 or
+            min((len(v) for v in test.values()), default=0) < 30):
+        return data, None
+    return train, test
+
+
+def _holdout_score(best: "Trial", test_data, avail, fundamentals_panel,
+                   sentiment_by_symbol, rebalance, top, commission_bps, slippage_bps):
+    """Re-score the winning config on the untouched test tail -> honest OOS Sharpe."""
+    if test_data is None:
+        return float("nan"), float("nan")
+    try:
+        if best.direction == "factor":
+            stats, _ = _score_factor_weights(test_data, best.params, fundamentals_panel,
+                                             sentiment_by_symbol, rebalance, top,
+                                             commission_bps, slippage_bps)
+        elif best.direction.startswith("model:"):
+            md = best.params.get("model")
+            if md == "equal_weight":
+                stats, _ = _score_factor_weights(test_data, {k: 1.0 for k in avail},
+                                                 fundamentals_panel, sentiment_by_symbol,
+                                                 rebalance, top, commission_bps, slippage_bps)
+            else:
+                res = Mdl.ml_factor_backtest(test_data, model=_make_model(md),
+                                             fundamentals_panel=fundamentals_panel,
+                                             sentiment_by_symbol=sentiment_by_symbol,
+                                             rebalance=rebalance, top=top,
+                                             commission_bps=commission_bps,
+                                             slippage_bps=slippage_bps)
+                stats = res.stats
+        else:
+            return float("nan"), float("nan")
+        return stats.get("sharpe", float("nan")), stats.get("total_return", float("nan"))
+    except Exception:  # noqa: BLE001
+        log.debug("holdout eval failed: %s", best.direction, exc_info=True)
+        return float("nan"), float("nan")
+
+
 def research_portfolio(data: dict, iterations: int = 24, *, seed: int = 0,
                        fundamentals_panel: pd.DataFrame | None = None,
                        sentiment_by_symbol: dict | None = None,
                        rebalance: str = "ME", top: float = 0.3,
                        commission_bps: float = 1.0, slippage_bps: float = 1.0,
-                       use_ml: bool = True) -> ResearchReport:
+                       use_ml: bool = True, oos_frac: float = 0.3) -> ResearchReport:
     """Bandit over two kinds of direction: 'factor' (sample factor-weight blends) and
     'model' (try ML predictors). Factor trials use the linear multi-factor portfolio;
     model trials use the cross-sectional ML backtest. The bandit learns which avenue
     is paying off and concentrates there — RD-Agent's adaptive scheduling, natively.
 
+    Honesty: the whole search runs on a TRAIN slice (the first `1-oos_frac` of history);
+    the single winner is then re-scored on the held-out TEST tail it never saw, reported
+    as `report.best.extra['holdout_sharpe']`. The per-trial `oos_sharpe` on the
+    leaderboard is the *selection* score (train) — compare configs by it, but trust the
+    winner's holdout. With too little history to split, it falls back to full-sample
+    scoring and the holdout is NaN.
+
     Only factors you supply data for are sampled (fundamentals/news optional). ML
     model directions are skipped gracefully if sklearn/lightgbm aren't installed.
     """
     rng = random.Random(seed)
+    train_data, test_data = _split_data(data, oos_frac)
     # which factors are actually available
     avail = ["momentum", "low_vol"]
     if fundamentals_panel is not None and len(fundamentals_panel):
@@ -205,7 +277,7 @@ def research_portfolio(data: dict, iterations: int = 24, *, seed: int = 0,
             if not wd:
                 wd = {avail[0]: 1.0}
             try:
-                stats, _ = _score_factor_weights(data, wd, fundamentals_panel,
+                stats, _ = _score_factor_weights(train_data, wd, fundamentals_panel,
                                                   sentiment_by_symbol, rebalance, top,
                                                   commission_bps, slippage_bps)
                 sh, ret = stats.get("sharpe", float("nan")), stats.get("total_return", float("nan"))
@@ -218,12 +290,12 @@ def research_portfolio(data: dict, iterations: int = 24, *, seed: int = 0,
             md = rng.choice(MODEL_DIRECTIONS)
             try:
                 if md == "equal_weight":
-                    stats, _ = _score_factor_weights(data, {k: 1.0 for k in avail},
+                    stats, _ = _score_factor_weights(train_data, {k: 1.0 for k in avail},
                                                      fundamentals_panel, sentiment_by_symbol,
                                                      rebalance, top, commission_bps, slippage_bps)
                     sh, ret, ic = stats.get("sharpe", float("nan")), stats.get("total_return", float("nan")), float("nan")
                 else:
-                    res = Mdl.ml_factor_backtest(data, model=_make_model(md),
+                    res = Mdl.ml_factor_backtest(train_data, model=_make_model(md),
                                                  fundamentals_panel=fundamentals_panel,
                                                  sentiment_by_symbol=sentiment_by_symbol,
                                                  rebalance=rebalance, top=top,
@@ -238,22 +310,32 @@ def research_portfolio(data: dict, iterations: int = 24, *, seed: int = 0,
             trials.append(Trial(f"model:{md}", {"model": md}, sh, ret, {"ic": ic}))
             bandit.update(d, _reward(sh))
 
-    return _finalize(trials, bandit)
+    rep = _finalize(trials, bandit)
+    # Judge the winner on the held-out tail it never saw during the search.
+    h_sh, h_ret = _holdout_score(rep.best, test_data, avail, fundamentals_panel,
+                                 sentiment_by_symbol, rebalance, top,
+                                 commission_bps, slippage_bps)
+    rep.best.extra["holdout_sharpe"] = h_sh
+    rep.best.extra["holdout_return"] = h_ret
+    return rep
 
 
 def cooptimize_factor_model(data: dict, rounds: int = 3, *,
                             fundamentals_panel: pd.DataFrame | None = None,
                             sentiment_by_symbol: dict | None = None,
                             rebalance: str = "ME", top: float = 0.3,
-                            seed: int = 0) -> dict:
+                            seed: int = 0, oos_frac: float = 0.3) -> dict:
     """Alternating factor<->model optimization (the heart of RD-Agent(Q)).
 
     Round-robin: (1) fix the model, search factor-weight blends; (2) fix the best
-    factors, search models. Repeat. Returns the best factor weights, best model
-    direction, and their OOS stats. A compact, honest version of co-optimization you
-    can run in seconds.
+    factors, search models. Repeat. A compact, honest version of co-optimization you
+    can run in seconds. Like research_portfolio, the search runs on a TRAIN slice and
+    the final (best_weights, best_model) pair is re-scored on the held-out TEST tail —
+    returned as `holdout` (sharpe + total_return), the number to trust. `history` holds
+    the per-round train (selection) Sharpes.
     """
     rng = random.Random(seed)
+    train_data, test_data = _split_data(data, oos_frac)
     avail = ["momentum", "low_vol"]
     if fundamentals_panel is not None and len(fundamentals_panel):
         avail += ["value", "quality", "growth"]
@@ -270,13 +352,13 @@ def cooptimize_factor_model(data: dict, rounds: int = 3, *,
         for _ in range(8):
             wd = {k: round(rng.random(), 2) for k in avail if rng.random() > 0.3} or {avail[0]: 1.0}
             try:
-                stats, _ = _score_factor_weights(data, wd, fundamentals_panel,
+                stats, _ = _score_factor_weights(train_data, wd, fundamentals_panel,
                                                  sentiment_by_symbol, rebalance, top, 1.0, 1.0)
                 if stats.get("sharpe", -np.inf) > best_sh:
                     best_sh, best_weights = stats["sharpe"], wd
             except Exception:  # noqa: BLE001
                 continue
-        history.append({"round": r, "phase": "factor", "best_sharpe": round(best_sh, 3),
+        history.append({"round": r, "phase": "factor", "train_sharpe": round(best_sh, 3),
                         "weights": dict(best_weights)})
 
         # (2) model search given factors fixed
@@ -284,11 +366,11 @@ def cooptimize_factor_model(data: dict, rounds: int = 3, *,
         for md in MODEL_DIRECTIONS:
             try:
                 if md == "equal_weight":
-                    stats, _ = _score_factor_weights(data, best_weights, fundamentals_panel,
+                    stats, _ = _score_factor_weights(train_data, best_weights, fundamentals_panel,
                                                      sentiment_by_symbol, rebalance, top, 1.0, 1.0)
                     sh = stats.get("sharpe", -np.inf)
                 else:
-                    res = Mdl.ml_factor_backtest(data, model=_make_model(md),
+                    res = Mdl.ml_factor_backtest(train_data, model=_make_model(md),
                                                  fundamentals_panel=fundamentals_panel,
                                                  sentiment_by_symbol=sentiment_by_symbol,
                                                  rebalance=rebalance, top=top)
@@ -298,10 +380,16 @@ def cooptimize_factor_model(data: dict, rounds: int = 3, *,
             except Exception:  # noqa: BLE001
                 continue
         best_model = chosen
-        history.append({"round": r, "phase": "model", "best_sharpe": round(best_msh, 3),
+        history.append({"round": r, "phase": "model", "train_sharpe": round(best_msh, 3),
                         "model": best_model})
 
-    return {"best_weights": best_weights, "best_model": best_model, "history": history}
+    # Honest OOS read on the final co-optimized pair.
+    winner = Trial(f"model:{best_model}", {"model": best_model}, float("nan"), float("nan")) \
+        if best_model != "equal_weight" else Trial("factor", dict(best_weights), float("nan"), float("nan"))
+    h_sh, h_ret = _holdout_score(winner, test_data, avail, fundamentals_panel,
+                                 sentiment_by_symbol, rebalance, top, 1.0, 1.0)
+    return {"best_weights": best_weights, "best_model": best_model, "history": history,
+            "holdout": {"sharpe": h_sh, "total_return": h_ret}}
 
 
 # ----------------------------------------------------------------------------
@@ -330,6 +418,11 @@ def ensemble_top_k(report: ResearchReport, df: pd.DataFrame, k: int = 3, *,
     averaging several decorrelated winners keeps most of the edge with less variance
     and lower overfitting risk (a free lunch when the strategies disagree). Returns a
     BacktestResult for the ensemble plus the list of members used.
+
+    Note: this re-backtests the blend on the `df` you pass. For a clean OOS read, pass a
+    hold-out slice not used when the members were selected (the members came from a
+    walk-forward research_single, but re-scoring on the same series still has mild
+    selection bias).
     """
     members = []
     for t in report.leaderboard.itertuples():

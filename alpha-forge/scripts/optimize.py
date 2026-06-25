@@ -26,6 +26,12 @@ from .backtest import backtest
 from . import metrics as M
 
 
+# Metrics where SMALLER is better. Everything else is larger-is-better -- including
+# max_drawdown, which is stored negative (so -0.05 already sorts above -0.30). Without
+# this, passing metric="ann_volatility" would silently select the MOST volatile params.
+_LOWER_IS_BETTER = {"ann_volatility"}
+
+
 def _param_combos(grid: dict[str, list]):
     keys = list(grid)
     for vals in itertools.product(*grid.values()):
@@ -39,7 +45,9 @@ def grid_search(StrategyCls, df: pd.DataFrame, grid: dict[str, list],
     """Evaluate every parameter combination; return a table sorted by `metric`.
 
     metric: any key from metrics.summary -- 'sharpe', 'sortino', 'calmar', 'cagr'...
-    Higher is always better (drawdowns are negative, so -5% sorts above -30%).
+    Higher is better for almost everything (drawdowns are negative, so -5% sorts above
+    -30%); the rare smaller-is-better metric (e.g. 'ann_volatility') is handled via
+    _LOWER_IS_BETTER so the table still puts the best config first.
     """
     rows = []
     for params in _param_combos(grid):
@@ -54,10 +62,8 @@ def grid_search(StrategyCls, df: pd.DataFrame, grid: dict[str, list],
             rows.append({**params, "error": str(e)})
     table = pd.DataFrame(rows)
     if metric in table.columns:
-        # All metrics, max_drawdown included, are best-when-LARGEST: drawdowns are
-        # stored as negatives, so -0.05 (shallow) > -0.30 (deep). The old
-        # ascending-for-drawdown special case put the WORST config first.
-        table = table.sort_values(metric, ascending=False, na_position="last").reset_index(drop=True)
+        table = table.sort_values(metric, ascending=(metric in _LOWER_IS_BETTER),
+                                  na_position="last").reset_index(drop=True)
     return table
 
 
@@ -107,20 +113,26 @@ def walk_forward(StrategyCls, df: pd.DataFrame, grid: dict[str, list],
         if len(train) < 30 or len(test) < 5:
             continue
 
-        # Optimize on train only.
-        best_params, best_score = None, -np.inf
+        # Optimize on train only. Compare on a signed score so smaller-is-better
+        # metrics (ann_volatility) select correctly; keep the raw value for display.
+        flip = -1.0 if metric in _LOWER_IS_BETTER else 1.0
+        best_params, best_cmp, best_raw = None, -np.inf, np.nan
         for params in _param_combos(grid):
             try:
                 sig = StrategyCls(**params).generate_signal(train)
                 stats = backtest(train, sig, lag=lag, commission_bps=commission_bps,
                                  slippage_bps=slippage_bps).stats
-                score = stats.get(metric, -np.inf)
-                if score > best_score:
-                    best_score, best_params = score, params
+                raw = stats.get(metric, np.nan)
+                if not np.isfinite(raw):
+                    continue
+                cmp = flip * raw
+                if cmp > best_cmp:
+                    best_cmp, best_raw, best_params = cmp, raw, params
             except Exception:  # noqa: BLE001
                 continue
         if best_params is None:
             continue
+        best_score = best_raw
 
         # Apply to the unseen test window. Generate the signal on train+test so
         # indicators have warm-up history, then slice to the test window.

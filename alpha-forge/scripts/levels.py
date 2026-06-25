@@ -152,3 +152,36 @@ def format_levels(lv: dict, symbol: str = "") -> str:
             f"  支撑 {lv['support1']}({_fp(p.get('support1'))})/{lv['support2']}({_fp(p.get('support2'))})  "
             f"阻力 {lv['resistance1']}({_fp(p.get('resistance1'))})/{lv['resistance2']}({_fp(p.get('resistance2'))})\n"
             f"  {lv['bias']}")
+
+
+def classify_signal(*, rsi=None, rr=None, trend="flat", in_buy_zone=False,
+                    event=False, leveraged=False, overbought=70.0, rr_min=1.5) -> str:
+    """Rule-based trade signal for a report alert / levels row → 'long' | 'watch' | 'short'.
+
+    Mechanical, NOT advice. The bar for 'long' is deliberately high so the badge means
+    something instead of defaulting to the same value everywhere:
+      * long  — uptrend AND not overbought (RSI < `overbought`) AND decent reward/risk
+                (rr ≥ `rr_min`) AND price actually in the buy zone, with no pending event
+                and not a leveraged ETF.
+      * short — confirmed downtrend that isn't already oversold (RSI > 30).
+      * watch — everything else (overbought / poor R/R / extended above the buy zone /
+                event pending / leveraged vehicle / flat trend) → "don't chase".
+
+    Inputs are tolerant: trend accepts 'bull'/'bear'/'flat' or a signed number; missing
+    rsi/rr are treated neutrally (rsi=50, rr=0) so the result degrades to 'watch'.
+    """
+    t = trend
+    if isinstance(t, (int, float)):
+        t = "bull" if t > 0 else "bear" if t < 0 else "flat"
+    t = str(t).lower()
+    bull = t in ("bull", "up", "bullish", "+1", "1")
+    bear = t in ("bear", "down", "bearish", "-1")
+    rsi_v = float(rsi) if rsi is not None else 50.0
+    rr_v = float(rr) if rr is not None else 0.0
+    if bear:
+        return "watch" if rsi_v <= 30 else "short"      # oversold downtrend → wait for a bounce
+    if leveraged or event:
+        return "watch"                                   # leveraged ETF / pre-event → risk control
+    if bull and rsi_v < overbought and rr_v >= rr_min and in_buy_zone:
+        return "long"
+    return "watch"

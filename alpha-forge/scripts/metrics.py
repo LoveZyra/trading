@@ -29,12 +29,23 @@ def total_return(returns: pd.Series) -> float:
 
 
 def cagr(returns: pd.Series, periods_per_year: int = TRADING_DAYS) -> float:
+    """Compound annual growth rate.
+
+    Guards against a real footgun: annualizing a *very short* window. Raising a few
+    bars' return to the ``periods_per_year/n`` power turns a +10% week into a
+    >10,000,000% 'CAGR', which then poisons ``calmar`` and any mean/sort over short
+    walk-forward folds. So for windows shorter than ~a month we return the plain
+    (un-annualized) window return -- bounded and still sortable. Normal-length windows
+    annualize exactly as before.
+    """
     n = len(returns)
     if n == 0:
         return 0.0
     growth = (1 + returns).prod()
     if growth <= 0:
         return -1.0
+    if n < max(5, periods_per_year // 12):   # < ~1 month of bars: don't extrapolate
+        return total_return(returns)
     return float(growth ** (periods_per_year / n) - 1)
 
 

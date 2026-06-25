@@ -71,10 +71,13 @@ def evaluate(path: str | Path, price_lookup, horizon: int = 5, today=None) -> di
         c = cache[sym]
         if c is None or len(c) == 0:
             continue
-        idx = c.index.searchsorted(d)
-        if idx + horizon >= len(c):
-            continue                       # not matured yet
-        fwd = float(c.iloc[idx + horizon] / c.iloc[idx] - 1)
+        # Snap to the last actual bar on/before the signal date: searchsorted alone
+        # returns the insertion point, so a weekend/holiday-dated signal would use the
+        # NEXT bar as the entry price. side="right"-1 gives the bar <= d.
+        entry = c.index.searchsorted(d, side="right") - 1
+        if entry < 0 or entry + horizon >= len(c):
+            continue                       # before first bar, or not matured yet
+        fwd = float(c.iloc[entry + horizon] / c.iloc[entry] - 1)
         direction = np.sign(sig)
         hit = (direction > 0 and fwd > 0) or (direction <= 0 and fwd <= 0)
         rows.append({"symbol": sym, "date": d, "signal": sig, "fwd_ret": fwd,

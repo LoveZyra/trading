@@ -188,6 +188,16 @@ def portfolio_health(panel_close: pd.DataFrame, weights=None, *,
                                                  market_shock=-0.10, market_close=market_close)
     # verdict
     msgs = []
+    # The risk math (ENB/VaR/correlation) keeps only names with COMPLETE returns in the
+    # window; a name with one missing bar is dropped. If that happens silently, the
+    # figures describe a SUBSET of the book — often understating risk, since the dropped
+    # names are exactly the new/illiquid ones. Surface it instead of hiding it.
+    used = set(_returns(panel_close).tail(lookback).dropna(axis=1, how="any").columns)
+    dropped = [c for c in cols if c not in used]
+    if dropped:
+        shown = ", ".join(map(str, dropped[:6])) + ("…" if len(dropped) > 6 else "")
+        msgs.append(f"⚠️ 风险指标仅基于 {len(used)}/{len(cols)} 只(数据不全已剔除:{shown})"
+                    f" → ENB/VaR/相关性为子集口径,可能低估风险")
     if enb < max(2, len(cols) * 0.25):
         msgs.append(f"⚠️ 有效押注仅 {enb}（共{len(cols)}只）→ 高度同质、集中风险大")
     if out["avg_correlation"] > 0.6:

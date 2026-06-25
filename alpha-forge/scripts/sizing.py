@@ -73,10 +73,14 @@ def risk_parity_weights(panel_close: pd.DataFrame, universe: list | None = None,
 
 def _erc_solve(cov: np.ndarray, max_iter: int = 200, tol: float = 1e-8) -> np.ndarray:
     """Solve equal-risk-contribution weights for covariance `cov` (long-only, sum=1)
-    via cyclical coordinate descent (Choi & Chen 2022, Spinu)."""
+    via cyclical coordinate descent (Choi & Chen 2022, Spinu). A tiny ridge conditions
+    near-collinear universes; if it doesn't converge within max_iter it WARNS rather than
+    silently returning a non-equal-risk portfolio the caller would trust."""
     n = cov.shape[0]
+    cov = cov + np.eye(n) * 1e-10          # condition near-singular / collinear covariances
     w = np.ones(n) / n
     vol = np.sqrt(w @ cov @ w)
+    converged = False
     for _ in range(max_iter):
         w_old = w.copy()
         for i in range(n):
@@ -84,12 +88,19 @@ def _erc_solve(cov: np.ndarray, max_iter: int = 200, tol: float = 1e-8) -> np.nd
             ci = cov[i] @ w - cov[i, i] * w[i]
             # solve quadratic: cov_ii*w_i^2 + ci*w_i - vol^2/n = 0
             a, b, c = cov[i, i], ci, -vol**2 / n
-            w[i] = (-b + np.sqrt(b*b - 4*a*c)) / (2*a) if a > 0 else w[i]
+            disc = b * b - 4 * a * c
+            w[i] = (-b + np.sqrt(max(disc, 0.0))) / (2 * a) if a > 0 else w[i]
         w = np.clip(w, 1e-8, None)
         w /= w.sum()
         vol = np.sqrt(w @ cov @ w)
         if np.abs(w - w_old).max() < tol:
+            converged = True
             break
+    if not converged:
+        import warnings as _w
+        _w.warn("risk-parity (ERC) did not converge within max_iter; weights are "
+                "approximate (increase max_iter or check for near-collinear assets).",
+                stacklevel=2)
     return w
 
 

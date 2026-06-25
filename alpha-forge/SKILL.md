@@ -1,18 +1,19 @@
 ---
 name: alpha-forge
 description: >-
-  Build, backtest, validate and run systematic stock-trading strategies, and research
-  factors/models. Use whenever the user wants to backtest a strategy, compute technical
-  indicators, evaluate Sharpe/Sortino/drawdown, optimize parameters, run walk-forward
-  (out-of-sample) validation, build a multi-factor stock screen, train an ML predictor
-  on factors, run an automated factor/model research loop, pull fundamentals (PE/PB/ROE)
-  or company news, score news sentiment, or turn a signal into a broker order. Triggers
-  on: 回测, 量化, 量化模型, 交易策略, 选股, 因子, 因子挖掘, 多因子, 夏普, 择时, 基本面,
-  财务指标, 市盈率, 新闻, 舆情, 情绪, 自动研究, 机器学习选股, backtest, trading strategy,
-  quant model, mean reversion, momentum, pairs trading, factor model, factor mining,
-  walk-forward, ML model, news sentiment, RD-Agent, IBKR / 盈透. Covers US, A-share (沪深),
-  Hong Kong and Korea, with data from the IBKR-style broker MCP or free libraries
-  (yfinance / akshare / pykrx).
+  Build, backtest, validate, and run systematic stock-trading strategies and research
+  factors/models — use for ANY rules-based or quantitative trading work. Covers
+  backtesting (trend/mean-reversion/momentum/pairs), technical indicators,
+  Sharpe/Sortino/drawdown, grid-search & walk-forward (out-of-sample) optimization,
+  multi-factor screens, custom-factor mining/validation, ML factor models, automated
+  factor/model research, fundamentals (PE/PB/ROE) & news, sentiment scoring, portfolio
+  sizing & concentration/risk, and turning a signal into a broker order. Triggers: 回测,
+  量化, 交易策略, 选股, 因子, 多因子, 夏普, 择时, 基本面, 舆情, 自动研究, 组合风险, 仓位, backtest,
+  trading strategy, quant, mean reversion, momentum, pairs trading, factor model,
+  walk-forward, ML model, news sentiment, portfolio risk, position sizing, RD-Agent,
+  IBKR/盈透. Markets: US, A-share (沪深), HK, Korea via the broker MCP or free libs
+  (yfinance/akshare/pykrx). For a company/sector writeup with NO strategy/backtest,
+  prefer the equity-research-report skill.
 ---
 
 # Alpha-Forge
@@ -164,8 +165,12 @@ search. Read `references/autoresearch.md` and `references/factor_extraction.md`.
 ```python
 from scripts import autoresearch as AR, models as Mdl, factor_lab as FL
 
-# (a) auto-search rule strategies on one asset (UCB bandit over families, OOS-scored)
+# (a) auto-search rule strategies on one asset (UCB bandit over families, walk-forward OOS)
 rep = AR.research_single(df, iterations=30); print(rep.best, rep.leaderboard.head())
+
+# (a2) auto-search factor blends + ML on a universe — search on train, winner judged
+#      on a HELD-OUT tail (rep.best.extra['holdout_sharpe'] is the number to trust)
+repp = AR.research_portfolio(prices, iterations=24, fundamentals_panel=funds); print(repp)
 
 # (b) ML model: learn factors -> forward return, walk-forward, with purge + IC
 res = Mdl.ml_factor_backtest(prices, model=Mdl.RidgeModel(1.0),
@@ -181,10 +186,16 @@ FL.validate_factor(mom_12_1, df)             # catches look-ahead before you tru
 FL.backtest_custom_factor(mom_12_1, df, mode="momentum")
 ```
 
-The whole loop is scored OUT-OF-SAMPLE so an automated search can't win by overfitting,
-and `factor_lab.validate_factor` mechanically refuses look-ahead factors. The "research
-agent" proposing ideas is you (Claude) — you shape the search space and seed factors;
-the loop does the honest evaluation.
+Every driver is scored out-of-sample, but knowing *how* matters: `research_single`
+walk-forwards each trial; `research_portfolio` and `cooptimize_factor_model` run the
+*search* on a train slice and judge the single winner on a held-out tail
+(`rep.best.extra['holdout_sharpe']`, or the co-opt's `holdout`) — trust that tail, not
+the per-trial leaderboard score (which is the train-side *selection* metric). For an
+extra multiple-testing haircut, feed the winner's returns to
+`validation.deflated_sharpe_ratio(n_trials=…)`. `factor_lab.validate_factor` refuses
+look-ahead factors (now probed at several cut points, not one). The "research agent"
+proposing ideas is you (Claude) — you shape the search space and seed factors; the loop
+does the honest evaluation.
 
 ### 2d. Honest-backtest upgrades (recent arXiv literature)
 

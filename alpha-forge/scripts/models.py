@@ -193,6 +193,13 @@ def ml_factor_backtest(data: dict, model: FactorModel | None = None,
     whether the model has any edge.
     """
     model = model or RidgeModel(alpha=1.0)
+    if fundamentals_panel is not None or sentiment_by_symbol:
+        import warnings as _w
+        _w.warn("ml_factor_backtest: fundamental/sentiment factors are a single CURRENT "
+                "snapshot broadcast across all history; as a TRAINED feature against a "
+                "forward-return label that is point-in-time look-ahead and can inflate "
+                "IC/returns. Supply dated PIT panels (data/pit.py) for an honest multi-year "
+                "backtest. The price factors (momentum/low_vol) are causal.", stacklevel=2)
     close = mf.build_panel(data, "close")
     panels = build_factor_panels(data, fundamentals_panel, sentiment_by_symbol)
     fnames = list(panels)
@@ -255,7 +262,7 @@ def ml_factor_backtest(data: dict, model: FactorModel | None = None,
         real = fwd.loc[t]
         both = pd.concat([pred_s, real], axis=1).dropna()
         if len(both) >= 3:
-            ic_list.append(both.corr().iloc[0, 1])
+            ic_list.append(both.rank().corr().iloc[0, 1])   # Spearman (rank) IC: robust to outliers, matches the "rank-ish" intent
 
         w_row = mf.rank_and_weight(pred_s.to_frame().T, top=top,
                                    bottom=(top if long_short else 0.0),
