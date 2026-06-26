@@ -304,5 +304,19 @@ report 的 `research` → 报告最末「自动研究详情」节(`researchSecti
 
 > **`params` 契约**:`leaderboard`/`winner` 的 `params` 必为引擎网格搜索选出的真实最优参数(如 `fast=20·slow=100`、`entry=20·exit=10`),仅无可搜参数的族回退 `默认`——严禁占位充数。
 
+> 自动研究每只标的**最低 30 次**(`autoresearch.MIN_ITERATIONS=30`,传入更小值会自动抬高)。
+
 由 `build_research.py`(搜索委托引擎 `autoresearch.screen_rule_strategies`(逐族网格穷举最优配置 + walk-forward 出样本夏普,**唯一搜索路径**),build_research 只排名、用 `REGISTRY[family](**params)` 取当前信号/触发价、跑 `validation.selection_robustness` 体检)生成。
 ⚠️ 触发价随行情移动;OOS 在单边牛市/短历史下高估(冠军总收益常不及买入持有、仅回撤更小);无价格序列标的 `winner=N/A`、`trades=None`。
+
+#### `research[].trades.overlays`(策略定义线,叠在价格图上)
+每项 `{label, color, dash(bool), data:[float|null,...]}`,`data` 与价格等长、`null` 自动断线。由 `signals.strategy_overlays(direction, params, df)` 生成:
+- `breakout` → N日高(买线)+ M日低(卖线)= 唐奇安上下轨
+- `ma_crossover` → 快/慢 EMA
+- `ts_momentum` → lookback 日前价(阈值线)
+- `bollinger_reversion` → 中/上/下轨
+- `zscore_reversion` → 均值MA + ±entry·σ 上下轨;`rsi_reversion` → 把 RSI 阈值按 Wilder 公式<b>反解为价格</b>(买线=RSI 触及 oversold 的价、卖线=触及 exit_level=50 的价,过阈点连续)
+- `macd_trend` → 纯振荡器(无单一价格映射),返回 `[]`
+
+#### 自动研究迭代档位(`depth`)
+`autoresearch.research_single(df, depth=...)` 与 `signals.all_methods(df, depth=...)` 支持档位预设:`RESEARCH_DEPTHS = {"quick":30, "standard":60, "deep":150}`。传 `depth="deep"` 即跑 150 次;`iterations=` 仍可显式覆盖(显式档位优先)。所有路径仍受 `MIN_ITERATIONS=30` 下限保护。短历史(如 <~120 根日线)即便深跑,样本外切片少、OOS 置信仍有限,需在报告中标注。

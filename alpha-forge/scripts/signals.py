@@ -152,10 +152,10 @@ def regime_signal(df):
             "detail": f"趋势 {'上升' if up else '非上升'} · 波动分位 {round(volp) if volp is not None else 'NA'} · 敞口×{round(sc,2) if sc is not None else 'NA'}"}
 
 
-def autoresearch_signal(df, iterations=8):
+def autoresearch_signal(df, iterations=30, depth=None):
     try:
         nsplits = max(2, min(4, len(df) // 35))   # adapt folds to history so OOS can compute
-        rep = AR.research_single(df, iterations=iterations, n_splits=nsplits)
+        rep = AR.research_single(df, iterations=iterations, depth=depth, n_splits=nsplits)
         best = rep.best
         name = getattr(best, "direction", None) or getattr(best, "name", None) or (best.get("name") if isinstance(best, dict) else str(best))
         oos = None
@@ -199,7 +199,7 @@ def rule_signal(df):
             "detail": f"R/R {round(float(lv['reward_risk']),2)} · {'在买区' if inz else ('买区上方' if last>bz[1] else '买区下方')}"}
 
 
-def all_methods(df, *, iterations=8, heavy=True):
+def all_methods(df, *, iterations=30, heavy=True, depth=None):
     """6-lens signal read for one instrument.
 
     heavy=False skips the two EXPENSIVE lenses (m3 walk-forward, m5 autoresearch — each
@@ -211,7 +211,7 @@ def all_methods(df, *, iterations=8, heavy=True):
     return {"m1": tech_rating(df), "m2": strength_score(df),
             "m3": walkforward_signal(df) if heavy else dict(skipped),
             "m4": regime_signal(df),
-            "m5": autoresearch_signal(df, iterations) if heavy else dict(skipped),
+            "m5": autoresearch_signal(df, iterations, depth) if heavy else dict(skipped),
             "m6": breakout_signal(df), "old": rule_signal(df)}
 
 
@@ -245,3 +245,48 @@ def methods_report(data, *, symbols=None, iterations=8, heavy=None, title="信�
     note = ("本表显式关闭了重型计算(heavy=False),「样本外择时 / 自动研究」两栏留空;默认全跑。"
             if (not hv and len(uni) > 1) else None)
     return {"title": title, "symbols": syms, "rows": rows, "data": per, "note": note}
+
+
+def strategy_overlays(direction, params, df):
+    """定义该策略买卖的「线」,用于画在价格图上:breakout→N日高/M日低(唐奇安上下轨);
+    ma_crossover→快/慢 EMA;ts_momentum→lookback 日前价(阈值);bollinger→中/上/下轨。
+    返回 [{label,color,dash,data:[float|None,...]}](data 与 close 等长,NaN→None 自动断线)。"""
+    c, h, l = df["close"], df["high"], df["low"]
+    def arr(s): return [None if pd.isna(x) else round(float(x), 4) for x in s]
+    p = params or {}
+    if direction == "breakout":
+        e = int(p.get("entry", 20)); ex = int(p.get("exit", 10))
+        return [{"label": f"{e}日高·买线", "color": "#c0392b", "dash": True, "data": arr(h.rolling(e).max())},
+                {"label": f"{ex}日低·卖线", "color": "#147a43", "dash": True, "data": arr(l.rolling(ex).min())}]
+    if direction == "ma_crossover":
+        fa = int(p.get("fast", 20)); sl = int(p.get("slow", 50))
+        return [{"label": f"EMA{fa}·快", "color": "#e08e0b", "dash": False, "data": arr(IND.ema(c, fa))},
+                {"label": f"EMA{sl}·慢", "color": "#1b3a5b", "dash": False, "data": arr(IND.ema(c, sl))}]
+    if direction == "ts_momentum":
+        lb = int(p.get("lookback", 60))
+        return [{"label": f"{lb}日前价·阈值", "color": "#b8860b", "dash": True, "data": arr(c.shift(lb))}]
+    if direction == "bollinger_reversion":
+        n = int(p.get("n", 20)); k = float(p.get("k", 2.0)); ma = c.rolling(n).mean(); sd = c.rolling(n).std()
+        return [{"label": f"中轨MA{n}", "color": "#1b3a5b", "dash": False, "data": arr(ma)},
+                {"label": "下轨·买", "color": "#c0392b", "dash": True, "data": arr(ma - k * sd)},
+                {"label": "上轨·卖", "color": "#147a43", "dash": True, "data": arr(ma + k * sd)}]
+    if direction == "zscore_reversion":
+        lb = int(p.get("lookback", 20)); ent = float(p.get("entry", 1.0)); ma = c.rolling(lb).mean(); sd = c.rolling(lb).std()
+        return [{"label": f"均值MA{lb}", "color": "#1b3a5b", "dash": False, "data": arr(ma)},
+                {"label": f"下轨 −{ent:g}σ·买", "color": "#c0392b", "dash": True, "data": arr(ma - ent * sd)},
+                {"label": f"上轨 +{ent:g}σ·卖", "color": "#147a43", "dash": True, "data": arr(ma + ent * sd)}]
+    if direction == "rsi_reversion":
+        nn = int(p.get("n", 14)); osold = float(p.get("oversold", 30)); exitlv = float(p.get("exit_level", 50))
+        d = c.diff(); gain = d.clip(lower=0); loss = -d.clip(upper=0)
+        ag = gain.ewm(alpha=1.0 / nn, adjust=False, min_periods=nn).mean().shift(1)
+        al = loss.ewm(alpha=1.0 / nn, adjust=False, min_periods=nn).mean().shift(1)
+        P0 = c.shift(1); rs_prev = ag / al.replace(0, float("nan"))
+        def isoline(T):  # 价格反解:使次日 RSI 恰为 T 的收盘价(过阈点连续:RSI>T 需跌、否则需涨)
+            RS = T / (100.0 - T)
+            down = P0 - (nn - 1) * (ag / RS - al)   # 价跌到此 → RSI 降到 T
+            up = P0 + (nn - 1) * (RS * al - ag)      # 价涨到此 → RSI 升到 T
+            return up.where(rs_prev <= RS, down)
+        def arr2(s2): return [None if (pd.isna(x) or x <= 0) else round(float(x), 4) for x in s2]
+        return [{"label": f"RSI{nn}={osold:g}·买线", "color": "#c0392b", "dash": True, "data": arr2(isoline(osold))},
+                {"label": f"RSI{nn}={exitlv:g}·卖线", "color": "#147a43", "dash": True, "data": arr2(isoline(exitlv))}]
+    return []  # macd_trend 是纯振荡器(无单一价格映射),不叠在价格图上

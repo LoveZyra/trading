@@ -121,7 +121,11 @@ class ResearchReport:
 # ----------------------------------------------------------------------------
 # Driver 1: rule-strategy research on a single asset
 # ----------------------------------------------------------------------------
-def research_single(df: pd.DataFrame, iterations: int = 30, *, seed: int = 0,
+MIN_ITERATIONS = 30  # 自动研究每只标的的最低搜索次数(skill 下限);低于此值自动抬到 30
+RESEARCH_DEPTHS = {"quick": 30, "standard": 60, "deep": 150}  # 迭代档位预设;传 depth= 即用,iterations= 仍可显式覆盖
+
+
+def research_single(df: pd.DataFrame, iterations: int = 30, *, depth: str = None, seed: int = 0,
                     n_splits: int = 4, commission_bps: float = 1.0,
                     slippage_bps: float = 1.0) -> ResearchReport:
     """Bandit-driven search over rule-strategy families on one asset.
@@ -130,6 +134,9 @@ def research_single(df: pd.DataFrame, iterations: int = 30, *, seed: int = 0,
     (the "hypothesis"), it's scored by walk-forward OOS Sharpe ("feedback"), and the
     bandit is updated. Returns a leaderboard + the hypothesis log.
     """
+    if depth is not None:
+        iterations = RESEARCH_DEPTHS.get(str(depth).lower().strip(), iterations)  # 档位优先于 iterations
+    iterations = max(int(iterations), MIN_ITERATIONS)  # enforce skill minimum
     rng = random.Random(seed)
     bandit = UCB1(list(RULE_SPACE))
     trials: list[Trial] = []

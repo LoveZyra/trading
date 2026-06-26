@@ -1016,32 +1016,35 @@ _JS = r"""
   function tradesChart(t) {
     var P = t.price || []; var n = P.length; if (n < 2) return null;
     var W = 1000, H = 300, pl = 56, pr = 12, ptp = 10, pb = 20, logy = !!t.logy;
-    var mn = Math.min.apply(null, P), mx = Math.max.apply(null, P), llo = Math.log(mn), lhi = Math.log(mx);
+    var mn = Math.min.apply(null, P), mx = Math.max.apply(null, P);
+    (t.overlays || []).forEach(function (o) { (o.data || []).forEach(function (v) { if (v != null && isFinite(v)) { if (v < mn) mn = v; if (v > mx) mx = v; } }); });
+    var llo = Math.log(mn > 0 ? mn : 1e-9), lhi = Math.log(mx > 0 ? mx : 1);
     function X(i) { return pl + i / (n - 1) * (W - pl - pr); }
     function Y(v) { var f = logy ? (Math.log(v) - llo) / ((lhi - llo) || 1) : (v - mn) / ((mx - mn) || 1); return ptp + (1 - f) * (H - ptp - pb); }
     function fmt(v) { var u = t.unit || ""; return v >= 1e6 ? u + (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? u + (v / 1e3).toFixed(0) + "k" : u + v.toFixed(0); }
+    function pathOf(a) { var d = "", pen = false; for (var i = 0; i < a.length; i++) { var v = a[i]; if (v == null || !isFinite(v)) { pen = false; continue; } d += (pen ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1) + " "; pen = true; } return d; }
     var pr2 = [];
     var labs = logy ? [mx, Math.exp((llo + lhi) / 2), mn] : [mx, (mn + mx) / 2, mn];
     [0, 0.5, 1].forEach(function (g, gi) { var y = ptp + g * (H - ptp - pb);
       pr2.push('<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y + '" y2="' + y + '" stroke="#e7e3d8" stroke-width="1"/>');
       pr2.push('<text x="' + (pl - 6) + '" y="' + (y + 3.5) + '" text-anchor="end" font-size="11" fill="#8a8474">' + fmt(labs[gi]) + '</text>'); });
     (t.hold || []).forEach(function (sp) { var x1 = X(sp[0]), x2 = X(sp[1]); pr2.push('<rect x="' + x1.toFixed(1) + '" y="' + ptp + '" width="' + Math.max(0.5, x2 - x1).toFixed(1) + '" height="' + (H - ptp - pb) + '" fill="#b8923f" opacity="0.16"/>'); });
-    pr2.push('<path d="' + P.map(function (v, i) { return (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1); }).join(" ") + '" fill="none" stroke="#222" stroke-width="1.5"/>');
-    var dlab = (t.dates && (t.buys || []).length + (t.sells || []).length <= 16);   // skip labels if too crowded
-    function dstr(i) { var s = t.dates && t.dates[i] ? String(t.dates[i]) : ""; return s.length >= 10 ? s.slice(5) : s; }  // YYYY-MM-DD -> MM-DD
+    (t.overlays || []).forEach(function (o) { var d = pathOf(o.data || []); if (d) pr2.push('<path d="' + d + '" fill="none" stroke="' + (o.color || "#888") + '" stroke-width="1.2"' + (o.dash ? ' stroke-dasharray="5 4"' : '') + ' opacity="0.95"/>'); });
+    pr2.push('<path d="' + pathOf(P) + '" fill="none" stroke="#222" stroke-width="1.5"/>');
+    var dlab = (t.dates && (t.buys || []).length + (t.sells || []).length <= 16);
+    function dstr(i) { var ss = t.dates && t.dates[i] ? String(t.dates[i]) : ""; return ss.length >= 10 ? ss.slice(5) : ss; }
     (t.buys || []).forEach(function (i) { var x = X(i), y = Y(P[i]); pr2.push('<polygon points="' + x + ',' + (y - 10) + ' ' + (x - 6.5) + ',' + (y + 3) + ' ' + (x + 6.5) + ',' + (y + 3) + '" fill="#c0392b" stroke="#fff" stroke-width="0.8"/>'); if (dlab) pr2.push('<text x="' + x.toFixed(1) + '" y="' + (y + 16) + '" text-anchor="middle" font-size="9.5" fill="#c0392b">' + dstr(i) + '</text>'); });
     (t.sells || []).forEach(function (i) { var x = X(i), y = Y(P[i]); pr2.push('<polygon points="' + x + ',' + (y + 10) + ' ' + (x - 6.5) + ',' + (y - 3) + ' ' + (x + 6.5) + ',' + (y - 3) + '" fill="#147a43" stroke="#fff" stroke-width="0.8"/>'); if (dlab) pr2.push('<text x="' + x.toFixed(1) + '" y="' + (y - 12) + '" text-anchor="middle" font-size="9.5" fill="#147a43">' + dstr(i) + '</text>'); });
     pr2.push('<circle cx="' + X(n - 1) + '" cy="' + Y(P[n - 1]) + '" r="4" fill="#111"/>');
     if (t.date_start) pr2.push('<text x="' + pl + '" y="' + (H - 5) + '" font-size="11" fill="#8a8474">' + t.date_start + '</text>');
     if (t.date_end) pr2.push('<text x="' + (W - pr) + '" y="' + (H - 5) + '" text-anchor="end" font-size="11" fill="#8a8474">' + t.date_end + '</text>');
-    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block">' + pr2.join("") + '</svg>';
-    var legend = el("div", { class: "tc-legend" }, [
-      el("span", { html: '<b style="color:#c0392b">▲</b> 买入' }),
-      el("span", { html: '<b style="color:#147a43">▼</b> 卖出' }),
-      el("span", { html: '<i class="hsw"></i> 持仓期' }),
-      t.now_label ? el("span", { class: "tc-now", html: t.now_label }) : null
-    ]);
-    return el("div", { class: "chart-card" }, [legend, el("div", { raw: svg })]);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block">' + pr2.join("") + '</svg>';
+    var leg = [el("span", { html: '<b style="color:#c0392b">▲</b> 买入' }), el("span", { html: '<b style="color:#147a43">▼</b> 卖出' }), el("span", { html: '<i class="hsw"></i> 持仓期' })];
+    (t.overlays || []).forEach(function (o) { leg.push(el("span", { html: '<i style="display:inline-block;width:15px;height:0;border-top:2px ' + (o.dash ? "dashed" : "solid") + ' ' + (o.color || "#888") + ';vertical-align:middle;margin-right:5px"></i>' + (o.label || "") })); });
+    if (t.now_label) leg.push(el("span", { class: "tc-now", html: t.now_label }));
+    var holder = el("div", null);
+    try { var _pd = new DOMParser().parseFromString(svg, "image/svg+xml"); var _r = _pd.documentElement; if (_r && String(_r.nodeName).toLowerCase() === "svg") holder.appendChild(document.importNode(_r, true)); else holder.innerHTML = svg; } catch (e) { holder.innerHTML = svg; }
+    return el("div", { class: "chart-card" }, [el("div", { class: "tc-legend" }, leg), holder]);
   }
   function researchSection(r) {
     var kids = (r.items || []).map(function (it) {

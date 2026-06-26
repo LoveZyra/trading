@@ -249,7 +249,7 @@ def test_autoresearch_single_and_ensemble():
     from scripts import autoresearch as ar
     df = _universe(1, 380)["S0"]
     rep = ar.research_single(df, iterations=6, seed=2)
-    assert len(rep.trials) == 6
+    assert len(rep.trials) == 30  # iterations<30 被抬到 skill 下限 MIN_ITERATIONS
     assert set(rep.bandit_summary) == set(ar.RULE_SPACE)
     res, members = ar.ensemble_top_k(rep, df, k=2)
     assert 1 <= len(members) <= 2
