@@ -59,6 +59,15 @@ get_price_history(contract_id=265598, exchange="NASDAQ", security_type="STK",
                   step="ONE_DAY", period="FIVE_YEARS", outside_rth=false)
 ```
 
+> ⚠️ **非美股 / 非 SMART 标的必须带 `exchange`(否则会被误判成「无数据」)。** SMART 路由只覆盖
+> 美股股票/期权。香港(`SEHK`)、A股(`CHINEXT`/`SEHKSZSE`等)、韩国(`KRX`)、期货等,
+> **`get_price_history` 和 `get_price_snapshot` 都必须传合约的原生 `exchange`**(取自
+> `search_contracts` 返回行的 `exchange` 字段)。不传 → 返回 `{}` 或「Details currently
+> unavailable」,看着像没数据、其实只是少了参数。港股例:
+> `get_price_snapshot(contract_id=…, exchange="SEHK", market_data_names=[…])` /
+> `get_price_history(contract_id=…, exchange="SEHK", security_type="STK", step="ONE_DAY", step_count=260, outside_rth=false)`。
+> **先补 `exchange` 再判断有没有数据,别急着用底层合成。**
+
 Valid `period`: ONE_DAY, TWO_DAYS, THREE_DAYS, ONE_WEEK, TWO_WEEKS, ONE_MONTH,
 THREE_MONTHS, SIX_MONTHS, ONE_YEAR, TWO_YEARS, FIVE_YEARS.
 Valid `step`: THIRTY_SECS, ONE_MIN, … ONE_HOUR, FOUR_HOURS, ONE_DAY, ONE_WEEK, ONE_MONTH.

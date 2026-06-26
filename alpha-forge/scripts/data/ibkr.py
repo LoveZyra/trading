@@ -41,6 +41,10 @@ def from_mcp_json_file(path: str | Path, *, name: str | None = None) -> pd.DataF
 # Period/step values accepted by the brokerage MCP, surfaced here so Claude (or a
 # user reading the code) doesn't have to guess. These are passed to the MCP tool,
 # not used by Python directly.
+# NOTE: for non-US / non-SMART instruments (HK SEHK, A-share CHINEXT, KRX, futures, ...)
+# you MUST pass exchange=<native exchange from search_contracts> to BOTH
+# get_price_history and get_price_snapshot, or the broker returns empty/"unavailable".
+# (US equities/options use SMART by default, so exchange may be omitted there.)
 MCP_PERIODS = [
     "ONE_DAY", "TWO_DAYS", "THREE_DAYS", "ONE_WEEK", "TWO_WEEKS",
     "ONE_MONTH", "THREE_MONTHS", "SIX_MONTHS", "ONE_YEAR", "TWO_YEARS", "FIVE_YEARS",
