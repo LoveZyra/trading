@@ -320,3 +320,6 @@ report 的 `research` → 报告最末「自动研究详情」节(`researchSecti
 
 #### 自动研究迭代档位(`depth`)
 `autoresearch.research_single(df, depth=...)` 与 `signals.all_methods(df, depth=...)` 支持档位预设:`RESEARCH_DEPTHS = {"quick":30, "standard":60, "deep":150}`。传 `depth="deep"` 即跑 150 次;`iterations=` 仍可显式覆盖(显式档位优先)。所有路径仍受 `MIN_ITERATIONS=30` 下限保护。短历史(如 <~120 根日线)即便深跑,样本外切片少、OOS 置信仍有限,需在报告中标注。
+
+#### `research[].trades.dates`(买卖点日期标注)
+传入与 `price` 等长的日期字符串数组(如 `YYYY-MM-DD`),`tradesChart` 会在买入(▲下方)/卖出(▼上方)标记旁画 **MM-DD** 日期;当买卖标记总数 **≤36** 时显示(过密则自动省略以免重叠)。日期不准时可用 `calendars.nyse_dates(end, n)`(美股 NYSE)/ `calendars.sehk_dates(end, n)`(港股 SEHK,假日表覆盖 2025–2026)/ `calendars.business_dates(end, n, holidays)`(通用)重建真实交易日:`df.index = nyse_dates('2026-06-25', len(df))` → `trades['dates'] = [d.strftime('%Y-%m-%d') for d in df.index]`。

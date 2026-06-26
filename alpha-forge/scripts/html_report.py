@@ -110,22 +110,23 @@ section.block:first-child{border-top:none}
 .sec-head .h-note{font-size:12px;color:var(--muted);font-family:var(--mono);white-space:nowrap}
 
 /* ===== Verdict (结论先行) ================================================= */
-.verdict{display:grid;grid-template-columns:auto 1fr;gap:0;border:1px solid var(--hair-2);
+.verdict{display:grid;grid-template-columns:minmax(146px,178px) 1fr;gap:0;border:1px solid var(--hair-2);
   background:linear-gradient(180deg,#fbfaf7,#fff)}
-.verdict .stance{padding:22px 24px;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:6px;min-width:158px;border-right:1px solid var(--hair-2);text-align:center}
+.verdict .stance{padding:20px 14px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:7px;border-right:1px solid var(--hair-2);text-align:center}
 .verdict .stance .lab{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.verdict .stance .val{font-family:var(--serif);font-size:30px;font-weight:700;line-height:1}
-.verdict .stance .arrow{font-size:20px;line-height:1;letter-spacing:1px}
+.verdict .stance .lvl-big{font-family:var(--serif);font-size:23px;font-weight:700;line-height:1.12}
+.verdict .stance .arrow{font-size:25px;line-height:1;letter-spacing:1px}
 .verdict .stance .lvl{font-size:11px;font-weight:700;letter-spacing:.1em;margin-top:5px;font-family:var(--sans)}
-.verdict.up .val,.verdict.up .arrow,.verdict.up .lvl{color:var(--pos)}
-.verdict.down .val,.verdict.down .arrow,.verdict.down .lvl{color:var(--neg)}
-.verdict.flat .val,.verdict.flat .arrow,.verdict.flat .lvl{color:var(--warn)}
+.verdict.up .lvl-big,.verdict.up .arrow,.verdict.up .lvl{color:var(--pos)}
+.verdict.down .lvl-big,.verdict.down .arrow,.verdict.down .lvl{color:var(--neg)}
+.verdict.flat .lvl-big,.verdict.flat .arrow,.verdict.flat .lvl{color:var(--warn)}
 .verdict .body-v{padding:18px 24px}
+.verdict .vhead{font-family:var(--serif);font-size:17px;font-weight:700;color:var(--ink);line-height:1.42;margin:0 0 11px;padding-bottom:9px;border-bottom:1px solid var(--hair-2)}
 .verdict .action{font-family:var(--serif);font-size:16.5px;font-weight:600;color:var(--ink);
   line-height:1.4;margin:0 0 8px}
 .verdict .summary{font-size:13px;color:var(--ink-soft);line-height:1.62;margin:0}
-.verdict .vpoints{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.verdict .vpoints{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px 28px}
 .verdict .vpt{display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.55;color:var(--ink-soft)}
 .verdict .vpt .vpi{flex:0 0 auto;font-size:14px;line-height:1.4}
 .verdict .vpt .vptx{flex:1;min-width:0}
@@ -626,10 +627,10 @@ _JS = r"""
       el("div", { class: "stance" }, [
         el("div", { class: "lab" }, "综合立场"),
         el("div", { class: "arrow" }, arrow),
-        el("div", { class: "val" }, v.stance || name),
-        el("div", { class: "lvl" }, name)
+        el("div", { class: "lvl-big" }, name)
       ]),
       el("div", { class: "body-v" }, [
+        v.stance ? el("div", { class: "vhead", html: v.stance }) : null,
         (v.points && v.points.length) ? el("ul", { class: "vpoints" }, v.points.map(function (pt) {
           var t = (typeof pt === "string") ? { text: pt } : (pt || {});
           return el("li", { class: "vpt" }, [
@@ -1031,7 +1032,7 @@ _JS = r"""
     (t.hold || []).forEach(function (sp) { var x1 = X(sp[0]), x2 = X(sp[1]); pr2.push('<rect x="' + x1.toFixed(1) + '" y="' + ptp + '" width="' + Math.max(0.5, x2 - x1).toFixed(1) + '" height="' + (H - ptp - pb) + '" fill="#b8923f" opacity="0.16"/>'); });
     (t.overlays || []).forEach(function (o) { var d = pathOf(o.data || []); if (d) pr2.push('<path d="' + d + '" fill="none" stroke="' + (o.color || "#888") + '" stroke-width="1.2"' + (o.dash ? ' stroke-dasharray="5 4"' : '') + ' opacity="0.95"/>'); });
     pr2.push('<path d="' + pathOf(P) + '" fill="none" stroke="#222" stroke-width="1.5"/>');
-    var dlab = (t.dates && (t.buys || []).length + (t.sells || []).length <= 16);
+    var dlab = (t.dates && (t.buys || []).length + (t.sells || []).length <= 36);
     function dstr(i) { var ss = t.dates && t.dates[i] ? String(t.dates[i]) : ""; return ss.length >= 10 ? ss.slice(5) : ss; }
     (t.buys || []).forEach(function (i) { var x = X(i), y = Y(P[i]); pr2.push('<polygon points="' + x + ',' + (y - 10) + ' ' + (x - 6.5) + ',' + (y + 3) + ' ' + (x + 6.5) + ',' + (y + 3) + '" fill="#c0392b" stroke="#fff" stroke-width="0.8"/>'); if (dlab) pr2.push('<text x="' + x.toFixed(1) + '" y="' + (y + 16) + '" text-anchor="middle" font-size="9.5" fill="#c0392b">' + dstr(i) + '</text>'); });
     (t.sells || []).forEach(function (i) { var x = X(i), y = Y(P[i]); pr2.push('<polygon points="' + x + ',' + (y + 10) + ' ' + (x - 6.5) + ',' + (y - 3) + ' ' + (x + 6.5) + ',' + (y - 3) + '" fill="#147a43" stroke="#fff" stroke-width="0.8"/>'); if (dlab) pr2.push('<text x="' + x.toFixed(1) + '" y="' + (y - 12) + '" text-anchor="middle" font-size="9.5" fill="#147a43">' + dstr(i) + '</text>'); });
