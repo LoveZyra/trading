@@ -1,0 +1,65 @@
+{
+  "H21": {
+    "n_dates": 53,
+    "n_names_avg": 23.0,
+    "meanIC": 0.0576,
+    "ICIR": 0.2,
+    "IC_hit": 0.528,
+    "RankIC": 0.0478,
+    "RankICIR": 0.186,
+    "LS_mean": 0.0193,
+    "LS_ann": 0.2319,
+    "LS_sharpe": 0.662,
+    "quantile_monotonicity": 1.0,
+    "verdict": "弱/不稳(达不到可用门槛)"
+  },
+  "H5": {
+    "n_dates": 54,
+    "n_names_avg": 23.0,
+    "meanIC": 0.0468,
+    "ICIR": 0.142,
+    "IC_hit": 0.5,
+    "RankIC": 0.0749,
+    "RankICIR": 0.24,
+    "LS_mean": 0.0091,
+    "LS_ann": 0.4564,
+    "LS_sharpe": 1.188,
+    "quantile_monotonicity": 0.7,
+    "verdict": "弱/不稳(达不到可用门槛)"
+  },
+  "latest": "2026-04-30",
+  "latest_top": [
+    {
+      "symbol": "LITE",
+      "pred": 0.1869535318284477
+    },
+    {
+      "symbol": "INTC",
+      "pred": 0.17130313353739351
+    },
+    {
+      "symbol": "CIEN",
+      "pred": 0.14282023896125043
+    },
+    {
+      "symbol": "NXPI",
+      "pred": 0.12250624992560767
+    },
+    {
+      "symbol": "COHR",
+      "pred": 0.10851337791199878
+    },
+    {
+      "symbol": "MRVL",
+      "pred": 0.10594059563738951
+    },
+    {
+      "symbol": "DELL",
+      "pred": 0.10593546908342895
+    },
+    {
+      "symbol": "VRT",
+      "pred": 0.098660788765518
+    }
+  ]
+}

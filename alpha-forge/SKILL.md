@@ -1,19 +1,17 @@
 ---
 name: alpha-forge
 description: >-
-  Build, backtest, validate, and run systematic stock-trading strategies and research
-  factors/models — use for ANY rules-based or quantitative trading work. Covers
-  backtesting (trend/mean-reversion/momentum/pairs), technical indicators,
-  Sharpe/Sortino/drawdown, grid-search & walk-forward (out-of-sample) optimization,
-  multi-factor screens, custom-factor mining/validation, ML factor models, automated
-  factor/model research, fundamentals (PE/PB/ROE) & news, sentiment scoring, portfolio
-  sizing & concentration/risk, and turning a signal into a broker order. Triggers: 回测,
-  量化, 交易策略, 选股, 因子, 多因子, 夏普, 择时, 基本面, 舆情, 自动研究, 组合风险, 仓位, backtest,
-  trading strategy, quant, mean reversion, momentum, pairs trading, factor model,
-  walk-forward, ML model, news sentiment, portfolio risk, position sizing, RD-Agent,
-  IBKR/盈透. Markets: US, A-share (沪深), HK, Korea via the broker MCP or free libs
-  (yfinance/akshare/pykrx). For a company/sector writeup with NO strategy/backtest,
-  prefer the equity-research-report skill.
+  Build, backtest, validate & run systematic stock-trading strategies and research factors/models:
+  backtesting (trend/mean-reversion/momentum/pairs), indicators, Sharpe/drawdown, walk-forward
+  optimization, multi-factor screens, custom-factor mining/validation, ML factor models,
+  cross-sectional AI stock-selection (IC/ICIR/RankIC, quantile, long-short), automated
+  factor/model research, fundamentals & news/sentiment, portfolio sizing & risk,
+  signal-to-broker-order. Triggers: 回测, 量化, 交易策略, 选股, AI选股, 横截面选股, 横截面排序, 多空组合, 因子, 多因子, 夏普, 择时,
+  基本面, 舆情, 自动研究, 组合风险, 仓位, backtest, trading strategy, quant, mean reversion, momentum, pairs
+  trading, factor model, walk-forward, ML model, cross-sectional ranking, stock ranking, IC, ICIR,
+  RankIC, long-short, news sentiment, portfolio risk, position sizing, RD-Agent, IBKR/盈透. Markets:
+  US, A-share (沪深), HK, Korea via broker MCP or free libs (yfinance/akshare/pykrx). No-strategy
+  company/sector writeup → use equity-research-report.
 ---
 
 # Alpha-Forge
@@ -228,6 +226,33 @@ ens, members = AR.ensemble_top_k(report, df, k=3)
 These exist because searching hard *creates* false positives: an automated loop will
 find in-sample flukes unless you deflate (validation), control risk (sizing/regime) and
 prefer robust ensembles. FINSABER (2505.07078) is the cautionary evidence.
+
+### 2e. AI 选股 / 横截面排序 (cross-sectional stock-selection)
+
+Use this path when the question is **"of these N stocks, which are relatively stronger?"**
+(rank a universe, build a long/long-short book) rather than timing one name. Orthogonal to
+the single-asset path and **composes** with it: the ranker picks *what* to hold, then
+`levels`/`sizing`/`regime`/`backtest` decide *when/how much*.
+
+```python
+from scripts import universe, panel as PN, xsec_eval, xsec_autoresearch, xsec_report
+from scripts.data import loader
+uni  = universe.build_universe({"market": "US", "source": "list", "symbols": [...]})
+data = loader.load_many(uni["symbols"])                       # {symbol: OHLCV}
+res  = xsec_eval.evaluate_cross_section(data, horizon=21, rebalance="ME", top_frac=0.2)
+print(res["scorecard"]); print(xsec_report.scorecard_markdown(res))
+lb   = xsec_autoresearch.search(data, horizon=21, rebalance="ME")   # 因子×模型 排行榜
+```
+
+Models reuse the `FactorModel` interface (`RidgeModel`/`LGBMModel`/`MLPModel`, optional
+`xsec_models.TorchRanker`); a deep model (RAVEN/LSTM/foundation) trained on your machine
+plugs in via `models.load_external_scores`, judged by the **same** scorecard.
+
+**Honesty rails (see `references/ai_stock_selection.md`):** RankIC is primary (Spearman);
+"usable" ~ RankIC >= 0.03 **and** RankICIR >= 0.3. The builder **warns** when the universe
+is < ~30 names or one sector — same-sector names co-move, leaving little to rank
+(empirically 9 AI-semis over 5y gave RankIC ~ 0 even for ridge). Always purge labels,
+charge costs, mind survivorship bias.
 
 ### 3. Backtest
 
