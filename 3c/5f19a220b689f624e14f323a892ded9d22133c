@@ -1,0 +1,73 @@
+alpha-forge/run_xsec_us.py
+  s_eee411b1090975::t_c603e4eee8c617 1-99
+usai_ai_xsec/AI选股_横截面评测报告.md
+  s_eee411b1090975::t_c219b2964de136 1-55
+usai_ai_xsec/raw_prices/ADI.csv
+  s_eee411b1090975::t_46ab0ae6200f2b 1-1253
+usai_ai_xsec/raw_prices/AMAT.csv
+  s_eee411b1090975::t_6e504f0d35f590 1-1253
+usai_ai_xsec/raw_prices/AMD.csv
+  s_eee411b1090975::t_fd960f38709825 1-1253
+usai_ai_xsec/raw_prices/ANET.csv
+  s_eee411b1090975::t_d6019496a55691 1-1253
+usai_ai_xsec/raw_prices/ASML.csv
+  s_eee411b1090975::t_3f5ac24cc7f5bb 1-1253
+usai_ai_xsec/raw_prices/AVGO.csv
+  s_eee411b1090975::t_1412a07b355971 1-1253
+usai_ai_xsec/raw_prices/CIEN.csv
+  s_eee411b1090975::t_54767cf8a1a58f 1-1253
+usai_ai_xsec/raw_prices/COHR.csv
+  s_eee411b1090975::t_c0056d5582f390 1-1253
+usai_ai_xsec/raw_prices/DELL.csv
+  s_eee411b1090975::t_5fac390f9f5cb0 1-1253
+usai_ai_xsec/raw_prices/INTC.csv
+  s_eee411b1090975::t_ccb737f7ba18c7 1-1253
+usai_ai_xsec/raw_prices/KLAC.csv
+  s_eee411b1090975::t_c9767c630a8c57 1-1253
+usai_ai_xsec/raw_prices/LITE.csv
+  s_eee411b1090975::t_267a8faa7698e5 1-1253
+usai_ai_xsec/raw_prices/LRCX.csv
+  s_eee411b1090975::t_ddbb62fba15287 1-1253
+usai_ai_xsec/raw_prices/MCHP.csv
+  s_eee411b1090975::t_507afeb98191da 1-1253
+usai_ai_xsec/raw_prices/MRVL.csv
+  s_eee411b1090975::t_44a996c60b2fec 1-1253
+usai_ai_xsec/raw_prices/MU.csv
+  s_eee411b1090975::t_ea409c71881c7e 1-1253
+usai_ai_xsec/raw_prices/NVDA.csv
+  s_eee411b1090975::t_cd4f8439ad3ae7 1-1253
+usai_ai_xsec/raw_prices/NXPI.csv
+  s_eee411b1090975::t_ac538cac364da0 1-1253
+usai_ai_xsec/raw_prices/QCOM.csv
+  s_eee411b1090975::t_9b8734f26a9f51 1-1253
+usai_ai_xsec/raw_prices/SMCI.csv
+  s_eee411b1090975::t_a7f78650e1cea8 1-1253
+usai_ai_xsec/raw_prices/TSM.csv
+  s_eee411b1090975::t_d17b195a432d48 1-1253
+usai_ai_xsec/raw_prices/TXN.csv
+  s_eee411b1090975::t_55da3d8377f3fb 1-1253
+usai_ai_xsec/raw_prices/VRT.csv
+  s_eee411b1090975::t_94ccaa1c6bdc89 1-1253
+usai_ai_xsec/usai_daily_H21.csv
+  s_eee411b1090975::t_6a267d9c12a5b0 1-54
+usai_ai_xsec/usai_preds_H21.csv
+  s_eee411b1090975::t_e597bd7e7544e6 1-1220
+usai_ai_xsec/usai_scorecard.json
+  s_eee411b1090975::t_97a24b89ac99a9 1-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "3c5f19a220b689f624e14f323a892ded9d22133c",
+  "prompts": {},
+  "sessions": {
+    "s_eee411b1090975": {
+      "agent_id": {
+        "tool": "windsurf",
+        "id": "8ea5619b-bf9f-4941-95fc-2d0f9edea33f",
+        "model": "Claude Opus 4.8 Medium"
+      },
+      "human_author": "scorpion <ctj1361096829@gmail.com>"
+    }
+  }
+}
