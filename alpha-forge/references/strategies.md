@@ -62,7 +62,7 @@ Keep ranges economically motivated — see `pitfalls.md` on overfitting.
 
 ```python
 from scripts.strategies.base import Strategy
-from scripts import indicators as ind
+from scripts.core import indicators as ind
 
 class MyStrategy(Strategy):
     name = "my_strategy"

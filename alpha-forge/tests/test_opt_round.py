@@ -21,7 +21,7 @@ def _frame(close: pd.Series) -> pd.DataFrame:
 def test_cagr_short_window_no_blowup():
     """A few-bar window must NOT annualize to an astronomical CAGR (it used to:
     1.1*1.05*1.2 over 3 bars -> ~8e11). Now it returns the plain window return."""
-    from scripts import metrics as M
+    from scripts.core import metrics as M
     short = pd.Series([0.1, 0.05, 0.2])
     assert M.cagr(short) == pytest.approx(M.total_return(short))
     assert abs(M.cagr(short)) < 5.0
@@ -29,7 +29,7 @@ def test_cagr_short_window_no_blowup():
 
 def test_cagr_normal_window_unchanged():
     """A normal (>=1 month) window still annualizes with the classic formula."""
-    from scripts import metrics as M
+    from scripts.core import metrics as M
     r = pd.Series(np.full(252, 0.0004))           # ~ +10.6%/yr compounded
     expected = (1 + r).prod() ** (252 / len(r)) - 1
     assert M.cagr(r) == pytest.approx(expected)
@@ -38,7 +38,7 @@ def test_cagr_normal_window_unchanged():
 # ------------------------------------------------------------- optimize metric
 def test_grid_search_minimizes_ann_volatility():
     """metric='ann_volatility' must put the LEAST volatile config first, not the most."""
-    from scripts import optimize as opt
+    from scripts.core import optimize as opt
     from scripts.strategies import MACrossover
     idx = pd.date_range("2020-01-01", periods=600, freq="B")
     close = pd.Series(100 * np.exp(np.cumsum(np.random.default_rng(1).normal(0.0004, 0.01, 600))), index=idx)
@@ -49,7 +49,7 @@ def test_grid_search_minimizes_ann_volatility():
 
 def test_grid_search_still_maximizes_sharpe():
     """Default (and other) metrics stay larger-is-better."""
-    from scripts import optimize as opt
+    from scripts.core import optimize as opt
     from scripts.strategies import MACrossover
     idx = pd.date_range("2020-01-01", periods=600, freq="B")
     close = pd.Series(100 * np.exp(np.cumsum(np.random.default_rng(2).normal(0.0004, 0.01, 600))), index=idx)
@@ -61,7 +61,7 @@ def test_grid_search_still_maximizes_sharpe():
 # ---------------------------------------------------------- factor_lab causality
 def test_validate_factor_catches_few_bar_lookahead():
     """A factor peeking only a few bars ahead must be flagged non-causal."""
-    from scripts import factor_lab as FL
+    from scripts.research import factor_lab as FL
     idx = pd.date_range("2020-01-01", periods=400, freq="B")
     df = _frame(pd.Series(100 * np.exp(np.cumsum(np.random.default_rng(3).normal(0, 0.01, 400))), index=idx))
     assert FL.validate_factor(lambda d: d["close"].pct_change(5), df).causal is True
@@ -73,7 +73,7 @@ def test_validate_factor_catches_few_bar_lookahead():
 def test_portfolio_health_warns_on_dropped_names():
     """A newly-listed name (leading NaNs) is dropped from the risk math; the health
     verdict must SAY SO rather than silently reporting a subset portfolio."""
-    from scripts import portfolio as PF
+    from scripts.risk import portfolio as PF
     idx = pd.date_range("2020-01-01", periods=200, freq="B")
     p = pd.DataFrame({s: 100 * np.exp(np.cumsum(np.random.default_rng(i).normal(0, 0.01, 200)))
                       for i, s in enumerate(["A", "B", "C"])}, index=idx)
@@ -96,7 +96,7 @@ def big_panel():
 
 def test_research_portfolio_reports_holdout(big_panel):
     """The winner must carry a held-out (OOS) Sharpe distinct from the selection score."""
-    from scripts import autoresearch as AR
+    from scripts.research import autoresearch as AR
     rep = AR.research_portfolio(big_panel, iterations=6, use_ml=False, seed=1)
     assert "holdout_sharpe" in rep.best.extra
     assert "holdout_return" in rep.best.extra
@@ -104,7 +104,7 @@ def test_research_portfolio_reports_holdout(big_panel):
 
 
 def test_cooptimize_reports_holdout(big_panel):
-    from scripts import autoresearch as AR
+    from scripts.research import autoresearch as AR
     co = AR.cooptimize_factor_model(big_panel, rounds=2)
     assert "holdout" in co and "sharpe" in co["holdout"]
     # history rows expose the TRAIN (selection) sharpe, not a mislabeled OOS one
@@ -116,7 +116,7 @@ def test_cooptimize_reports_holdout(big_panel):
 def test_signal_tracker_snaps_nontrading_date_to_prior_bar(tmp_path):
     """A signal dated on a weekend must use the LAST trading bar on/before it as the
     entry (searchsorted alone would grab the NEXT bar)."""
-    from scripts import signal_tracker as ST
+    from scripts.research import signal_tracker as ST
     idx = pd.date_range("2024-01-01", periods=60, freq="B")
     close = pd.Series(np.linspace(100, 160, 60), index=idx)
     # find a Friday in the index, sign the *Saturday* after it (not a trading day)
@@ -134,7 +134,7 @@ def test_signal_tracker_snaps_nontrading_date_to_prior_bar(tmp_path):
 def test_ml_factor_backtest_warns_on_snapshot_factors(big_panel):
     """Using static fundamentals/sentiment as trained features is point-in-time
     look-ahead; the function must warn (and still return a sane IC)."""
-    from scripts import models as Mdl
+    from scripts.research import models as Mdl
     senti = {s: 0.1 * i for i, s in enumerate(big_panel)}
     with pytest.warns(UserWarning, match="point-in-time"):
         res = Mdl.ml_factor_backtest(big_panel, sentiment_by_symbol=senti, rebalance="ME")
@@ -144,7 +144,7 @@ def test_ml_factor_backtest_warns_on_snapshot_factors(big_panel):
 def test_risk_parity_weights_valid(big_panel):
     """ERC weights are long-only and (on a rebalance) sum to ~1; collinear assets must
     not crash the solver."""
-    from scripts import sizing as SZ
+    from scripts.risk import sizing as SZ
     close = pd.DataFrame({s: big_panel[s]["close"] for s in big_panel})
     w = SZ.risk_parity_weights(close, lookback=126)
     last = w.iloc[-1]

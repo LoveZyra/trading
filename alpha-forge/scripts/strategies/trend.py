@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .. import indicators as ind
+from ..core import indicators as ind
 from .base import Strategy, positions_from_signals
 
 

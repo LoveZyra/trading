@@ -2,7 +2,7 @@
 只用 numpy/pandas,无网络/无 torch。"""
 import warnings
 import numpy as np, pandas as pd, pytest
-from scripts import universe, panel as PN, xsec_eval, xsec_autoresearch, xsec_report
+from scripts.xsec import universe, panel as PN, xsec_eval, xsec_autoresearch, xsec_report
 
 def _make_panel(n_sym=40, T=420, signal=True, seed=0):
     rng = np.random.default_rng(seed)
@@ -53,3 +53,10 @@ def test_report_renders():
     res = xsec_eval.evaluate_cross_section(_make_panel(seed=5), horizon=21, rebalance="ME", min_names=10)
     assert "RankIC" in xsec_report.scorecard_markdown(res)
     assert "横截面" in xsec_report.scorecard_html(res)
+
+def test_render_html_report():
+    from scripts.xsec import xsec_report
+    res = xsec_eval.evaluate_cross_section(_make_panel(signal=True, seed=9), horizon=21, rebalance="ME", min_names=10)
+    cr = [{"symbol": f"S{i:02d}", "sector": "x", "score": 0.2 - 0.01*i} for i in range(40)]
+    h = xsec_report.render_html_report({"H=21": res, "H=5": res}, cr, title="T", subtitle="s", out_path=None)
+    assert "<html" in h and "最终排名" in h and "S00" in h and "诚实红线" in h

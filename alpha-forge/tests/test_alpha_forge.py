@@ -54,7 +54,7 @@ def test_from_columnar_ibkr_handoff():
 # ======================================================================== #
 def test_backtest_lags_signal_by_one_bar(ohlcv):
     """The #1 honesty guarantee: today's signal becomes tomorrow's position."""
-    from scripts import backtest as bt
+    from scripts.core import backtest as bt
     sig = pd.Series(np.random.RandomState(0).uniform(-1, 1, len(ohlcv)), index=ohlcv.index)
     r = bt.backtest(ohlcv, sig, lag=1, commission_bps=0, slippage_bps=0)
     expected = sig.shift(1).fillna(0.0)
@@ -63,7 +63,7 @@ def test_backtest_lags_signal_by_one_bar(ohlcv):
 
 
 def test_backtest_costs_only_reduce_return(ohlcv):
-    from scripts import backtest as bt
+    from scripts.core import backtest as bt
     from scripts.strategies import MACrossover
     sig = MACrossover(fast=10, slow=30).generate_signal(ohlcv)
     free = bt.backtest(ohlcv, sig, commission_bps=0, slippage_bps=0)
@@ -73,7 +73,7 @@ def test_backtest_costs_only_reduce_return(ohlcv):
 
 
 def test_buy_and_hold_equals_price_return(ohlcv):
-    from scripts import backtest as bt
+    from scripts.core import backtest as bt
     bh = bt.buy_and_hold(ohlcv)
     expected = ohlcv["close"].iloc[-1] / ohlcv["close"].iloc[0] - 1
     assert abs(bh.stats["total_return"] - expected) < 1e-9
@@ -81,7 +81,7 @@ def test_buy_and_hold_equals_price_return(ohlcv):
 
 def test_portfolio_holds_between_rebalances(panel):
     """Guards the Tier-2 fix: a rebalance-only weight panel must HOLD, not go flat."""
-    from scripts import backtest as bt
+    from scripts.core import backtest as bt
     from scripts.strategies import multi_factor as mf
     close = mf.build_panel(panel, "close")
     w = pd.DataFrame(np.nan, index=close.index, columns=close.columns)
@@ -94,23 +94,23 @@ def test_portfolio_holds_between_rebalances(panel):
 #  Metrics (scripts/metrics.py)
 # ======================================================================== #
 def test_total_return_exact():
-    from scripts import metrics as M
+    from scripts.core import metrics as M
     assert abs(M.total_return(pd.Series([0.1, 0.1])) - 0.21) < 1e-12
 
 
 def test_cagr_doubling_in_one_year():
-    from scripts import metrics as M
+    from scripts.core import metrics as M
     r = pd.Series([2 ** (1 / 252) - 1] * 252)   # exactly doubles over 252 bars
     assert abs(M.cagr(r) - 1.0) < 1e-6
 
 
 def test_sharpe_zero_when_flat():
-    from scripts import metrics as M
+    from scripts.core import metrics as M
     assert M.sharpe(pd.Series([0.0] * 50)) == 0.0
 
 
 def test_max_drawdown_non_positive(ohlcv):
-    from scripts import metrics as M
+    from scripts.core import metrics as M
     eq = (1 + ohlcv["close"].pct_change().fillna(0)).cumprod()
     assert M.max_drawdown(eq) <= 0
 
@@ -120,7 +120,7 @@ def test_max_drawdown_non_positive(ohlcv):
 # ======================================================================== #
 def test_pbo_is_low_for_a_genuinely_robust_set():
     """REGRESSION: pbo_cscv sign was inverted — a robust set reported pbo~0.89 'overfit'."""
-    from scripts import validation as V
+    from scripts.core import validation as V
     np.random.seed(1)
     df = pd.DataFrame({f"s{j}": np.random.normal(0.002 if j == 0 else 0.0, 0.01, 600)
                        for j in range(8)})
@@ -131,7 +131,7 @@ def test_pbo_is_low_for_a_genuinely_robust_set():
 
 def test_pbo_noise_not_below_robust():
     """A pure-noise set must not look MORE robust than a real-edge set (catches re-inversion)."""
-    from scripts import validation as V
+    from scripts.core import validation as V
     np.random.seed(3)
     robust = pd.DataFrame({f"s{j}": np.random.normal(0.002 if j == 0 else 0.0, 0.01, 600)
                            for j in range(8)})
@@ -141,7 +141,7 @@ def test_pbo_noise_not_below_robust():
 
 def test_dsr_not_pinned_at_zero_and_monotone_in_trials():
     """REGRESSION: default sr_std=1.0 pinned DSR at 0 for any realistic strategy."""
-    from scripts import validation as V
+    from scripts.core import validation as V
     np.random.seed(2)
     strong = pd.Series(np.random.normal(0.0012, 0.01, 750))
     assert 0.0 < V.deflated_sharpe_ratio(strong, 50) < 1.0
@@ -150,7 +150,7 @@ def test_dsr_not_pinned_at_zero_and_monotone_in_trials():
 
 
 def test_dsr_strong_beats_weak():
-    from scripts import validation as V
+    from scripts.core import validation as V
     np.random.seed(5)
     strong = pd.Series(np.random.normal(0.0012, 0.01, 750))
     weak = pd.Series(np.random.normal(0.0, 0.01, 750))
@@ -161,18 +161,18 @@ def test_dsr_strong_beats_weak():
 #  Factor lab — causality guard (scripts/factor_lab.py)
 # ======================================================================== #
 def test_validate_factor_passes_causal(ohlcv):
-    from scripts import factor_lab as FL
+    from scripts.research import factor_lab as FL
     assert FL.validate_factor(lambda d: d["close"].pct_change(20), ohlcv).causal
 
 
 def test_validate_factor_catches_lookahead(ohlcv):
-    from scripts import factor_lab as FL
+    from scripts.research import factor_lab as FL
     peek = lambda d: d["close"].shift(-1) / d["close"] - 1     # uses tomorrow's bar
     assert not FL.validate_factor(peek, ohlcv).causal
 
 
 def test_backtest_custom_factor_refuses_lookahead(ohlcv):
-    from scripts import factor_lab as FL
+    from scripts.research import factor_lab as FL
     with pytest.raises(ValueError):
         FL.backtest_custom_factor(lambda d: d["close"].shift(-1), ohlcv)
 
@@ -189,7 +189,7 @@ def test_multi_factor_weights_ffilled(panel):
 
 
 def test_walk_forward_produces_oos(ohlcv):
-    from scripts import optimize as opt
+    from scripts.core import optimize as opt
     from scripts.strategies import MACrossover
     wf = opt.walk_forward(MACrossover, ohlcv,
                           grid={"fast": [10, 20], "slow": [40, 60]}, n_splits=4)
@@ -286,7 +286,7 @@ def test_sentiment_positional_negation():
 # ======================================================================== #
 def test_markdown_report_missing_metrics_safe():
     """REGRESSION: hard s['key'] indexing crashed / printed nan% on absent metrics."""
-    from scripts import report as rpt
+    from scripts.reporting import report as rpt
 
     class R:
         stats = {"total_return": 0.1, "sharpe": 1.2}    # most keys absent
@@ -331,14 +331,14 @@ def test_apply_cn_rules_blocks_shorts(ohlcv):
 # ======================================================================== #
 def test_html_title_is_escaped():
     """REGRESSION: <title> was raw-concatenated — markup in a title broke <head>."""
-    from scripts import html_report as H
+    from scripts.reporting import html_report as H
     html = H.render({"meta": {"title": "X & </title><script>boom()</script>"}})
     assert "<script>boom()" not in html
     assert "&amp;" in html
 
 
 def test_html_render_tolerates_missing_keys():
-    from scripts import html_report as H
+    from scripts.reporting import html_report as H
     html = H.render({"meta": {"title": "t", "report_type": "single"}})
     assert "<html" in html and "report-data" in html
 
@@ -349,7 +349,7 @@ def test_html_render_tolerates_missing_keys():
 def test_signals_heavy_false_skips_expensive_lenses(ohlcv):
     """heavy=False (explicit opt-off for large universes) leaves the two expensive lenses
     (walk-forward, autoresearch) blank; heavy=True actually runs them."""
-    from scripts import signals as SG
+    from scripts.research import signals as SG
     light = SG.all_methods(ohlcv, heavy=False)
     assert light["m3"]["label"] == "—" and light["m5"]["label"] == "—"
     assert "关闭" in light["m3"]["detail"] and "关闭" in light["m5"]["detail"]
@@ -359,7 +359,7 @@ def test_signals_heavy_false_skips_expensive_lenses(ohlcv):
 
 def test_methods_report_rows_carry_descriptions(ohlcv):
     """Every 信号多法对照 row carries an intro; by default ALL lenses run (no silent skip)."""
-    from scripts import signals as SG
+    from scripts.research import signals as SG
     m = SG.methods_report({"AAA": ohlcv, "BBB": ohlcv})
     assert m["rows"] and all(r.get("desc") for r in m["rows"])
     assert {s["key"] for s in m["symbols"]} == {"AAA", "BBB"}
@@ -371,7 +371,7 @@ def test_methods_report_rows_carry_descriptions(ohlcv):
 
 def test_strategy_glossary_covers_families():
     """Every tested strategy family resolves to a one-line intro (keys aligned w/ grids)."""
-    from scripts import autoresearch as AR
+    from scripts.research import autoresearch as AR
     gl = AR.strategy_glossary(families=["ts_momentum", "ma_crossover", "zscore_reversion"])
     assert [g["family"] for g in gl] == ["ts_momentum", "ma_crossover", "zscore_reversion"]
     assert all(g["intro"] and g["name"] for g in gl)
@@ -382,7 +382,7 @@ def test_strategy_glossary_covers_families():
 #  CPCV (OOS distribution) + SPA / Reality Check  (validation.py upgrade)
 # ======================================================================== #
 def test_cpcv_distribution_separates_edge_from_noise():
-    from scripts import validation as V
+    from scripts.core import validation as V
     rng = np.random.default_rng(7)
     edge = pd.Series(rng.normal(0.0016, 0.01, 1200))      # real ann Sharpe ~1.4
     noise = pd.Series(rng.normal(0.0, 0.01, 1200))
@@ -395,7 +395,7 @@ def test_cpcv_distribution_separates_edge_from_noise():
 
 def test_spa_flags_real_edge_and_clears_noise():
     """REGRESSION: SPA must call a real edge significant and a best-of-noise NOT."""
-    from scripts import validation as V
+    from scripts.core import validation as V
     rng = np.random.default_rng(11)
     real = pd.DataFrame({f"s{j}": rng.normal(0.0016 if j == 0 else 0.0, 0.01, 700) for j in range(8)})
     pure = pd.DataFrame({f"s{j}": rng.normal(0.0, 0.01, 700) for j in range(8)})
@@ -406,7 +406,7 @@ def test_spa_flags_real_edge_and_clears_noise():
 
 
 def test_selection_robustness_bundle():
-    from scripts import validation as V
+    from scripts.core import validation as V
     rng = np.random.default_rng(3)
     trials = pd.DataFrame({f"s{j}": rng.normal(0.0015 if j == 0 else 0.0, 0.01, 700) for j in range(6)})
     rob = V.selection_robustness(trials)
@@ -420,7 +420,7 @@ def test_html_render_is_nan_safe():
     and the whole report blanks. (Python's json tolerates NaN, so this only bites live.)"""
     import json
     import re
-    from scripts import html_report as H
+    from scripts.reporting import html_report as H
     rep = {"meta": {"title": "t"},
            "technical": {"level": {"price": 10.0, "rr": float("nan")}},
            "methods": {"data": {"X": {"m5": {"oos_sharpe": float("inf")}}}}}
@@ -435,7 +435,7 @@ def test_build_research_full_structure(ohlcv):
     """build_research is the SCHEMA-documented (previously MISSING) builder for the rich
     research block: winner+triggers, leaderboard rows with per-strategy signal & buy/sell
     triggers, a buy/sell-points trades chart, stats, glossary, and a robustness bundle."""
-    from scripts import build_research as BR
+    from scripts.reporting import build_research as BR
     r = BR.build_research(ohlcv, name="X")
     it = r["items"][0]
     w = it["winner"]

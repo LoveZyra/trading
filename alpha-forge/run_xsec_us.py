@@ -7,8 +7,8 @@ from __future__ import annotations
 import warnings
 import numpy as np, pandas as pd
 
-from scripts import universe, xsec_eval, xsec_autoresearch, xsec_report, panel as PN
-from scripts import models as M
+from scripts.xsec import universe, xsec_eval, xsec_autoresearch, xsec_report, panel as PN
+from scripts.research import models as M
 from scripts.data import loader
 from scripts.strategies import multi_factor as mf
 

@@ -27,10 +27,10 @@ from pathlib import Path
 # Allow `python run_backtest.py` from inside scripts/ as well as `-m`.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts import backtest as bt
-from scripts import optimize as opt
-from scripts import report as rpt
-from scripts import metrics as M
+from scripts.core import backtest as bt
+from scripts.core import optimize as opt
+from scripts.reporting import report as rpt
+from scripts.core import metrics as M
 from scripts.data.loader import load
 from scripts.strategies import REGISTRY
 
@@ -91,7 +91,7 @@ def main(argv=None):
     if args.walk_forward:
         # Sensible default grid around the chosen strategy's main knobs
         # (single source of truth shared with autoresearch).
-        from scripts.param_grids import PARAM_GRIDS
+        from scripts.research.param_grids import PARAM_GRIDS
         grid = PARAM_GRIDS[args.strategy]
         res = opt.walk_forward(StrategyCls, df, grid, metric=args.metric,
                                commission_bps=args.commission_bps,

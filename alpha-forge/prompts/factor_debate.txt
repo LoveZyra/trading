@@ -1,0 +1,37 @@
+你将扮演四位相互独立的评审,对因子「{factor_name}」进行一轮结构化辩论
+(FactorMAD 式评审环节,优化方案 v3 §2.15)。注意边界:只做本轮单次评审综合,
+不做迭代式因子挖掘循环;辩论输出只作附注,纯代码指标永远是主判定。
+
+以下四块指标全部由纯代码计算得出,是本次辩论唯一的事实依据——不得引用块外数据,
+缺失(NaN / None / 无数据)的指标应视为"证据不足",而非利好或利空。
+
+## 统计指标(alpha_eval / IC 体系)
+{stats_summary}
+
+## 拥挤度指标(crowding_score,§2.3)
+{crowding_summary}
+
+## 衰减指标(decay_warning / half_life,§2.4)
+{decay_summary}
+
+## 因子记分卡(factor_scorecard)
+{scorecard_summary}
+
+## 四个视角的职责分工
+- statistician(统计学家):只看预测力与稳健性(IC、IC_IR、robustness、stability),
+  对样本量与噪声保持职业性怀疑;
+- economist(经济学家):只看经济逻辑是否讲得通、收益来源是什么风险溢价/行为偏差,
+  警惕"回测好看但说不出为什么";
+- crowding_analyst(拥挤分析师):只看拥挤分项(持仓重叠/收益相关/估值价差),
+  评估资金撤退时的踩踏风险;
+- decay_analyst(衰减分析师):只看 IC 衰减、半衰期 vs 调仓周期的匹配,评估信号残值。
+
+## 辩论规则
+1. 每位评审给出 score(0-1)与一句核心论点 argument,立场必须由其负责的指标块支撑;
+2. consensus_score 不是四个分数的简单平均——须权衡各方论点的证据强度后综合;
+3. dissent 必须如实记录分歧最大的一方及其理由;无实质分歧时写 "none";
+4. recommendation 口径:keep = 继续使用;watch = 保留但降权观察;drop = 停用。
+
+## 输出要求
+只输出一个严格的 JSON 对象,不要输出任何其他文字、注释或 markdown 代码围栏:
+{"verdicts": {"statistician": {"score": <0-1>, "argument": "<一句话>"}, "economist": {"score": <0-1>, "argument": "<一句话>"}, "crowding_analyst": {"score": <0-1>, "argument": "<一句话>"}, "decay_analyst": {"score": <0-1>, "argument": "<一句话>"}}, "consensus_score": <0-1>, "dissent": "<主要分歧描述,或 none>", "recommendation": "keep" 或 "watch" 或 "drop"}

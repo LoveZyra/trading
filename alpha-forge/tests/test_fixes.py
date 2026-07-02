@@ -84,7 +84,7 @@ def test_pair_spread_flat_leg_no_inf():
 
 # ---------------------------------------------------------------------- BUG-3
 def test_profit_factor_never_inf():
-    from scripts.metrics import profit_factor
+    from scripts.core.metrics import profit_factor
     all_gain = pd.Series([0.01, 0.02, 0.005])
     assert np.isfinite(profit_factor(all_gain))
     assert np.isnan(profit_factor(pd.Series([0.0, 0.0])))
@@ -94,7 +94,7 @@ def test_profit_factor_never_inf():
 
 # ---------------------------------------------------------------------- NEW-3
 def test_rebalance_dates_fall_on_trading_days():
-    from scripts.rebalance import rebalance_dates
+    from scripts.core.rebalance import rebalance_dates
     idx = pd.bdate_range("2022-01-03", "2024-12-31")
     rd = rebalance_dates(idx, "ME")
     assert len(rd) == 36                              # every month rebalances
@@ -116,7 +116,7 @@ def test_multi_factor_signal_rebalances_every_month():
 
 # ---------------------------------------------------------------------- NEW-9
 def test_vol_target_scale_warmup_is_neutral():
-    from scripts.sizing import vol_target_scale
+    from scripts.risk.sizing import vol_target_scale
     r = pd.Series(np.random.default_rng(2).normal(0, 0.01, 100),
                   index=pd.date_range("2024-01-01", periods=100))
     scale = vol_target_scale(r, lookback=21)
@@ -136,7 +136,7 @@ def test_validate_ohlcv_drops_inconsistent_rows():
 
 # ------------------------------------------------------------------------ L-6
 def test_rsi_edge_cases():
-    from scripts.indicators import rsi
+    from scripts.core.indicators import rsi
     flat = pd.Series(100.0, index=pd.date_range("2024-01-01", periods=40))
     assert (rsi(flat, 14).dropna() == 50.0).all()
     up = pd.Series(np.arange(100.0, 140.0), index=pd.date_range("2024-01-01", periods=40))
@@ -145,7 +145,7 @@ def test_rsi_edge_cases():
 
 # ---------------------------------------------------------------------- OPT-6
 def test_backtest_validates_inputs():
-    from scripts.backtest import backtest
+    from scripts.core.backtest import backtest
     df = _uptrend(80)
     sig = pd.Series(1.0, index=df.index)
     with pytest.raises(ValueError):
@@ -160,7 +160,7 @@ def test_backtest_validates_inputs():
 
 # ---------------------------------------------------------------------- OPT-7
 def test_backtest_portfolio_ledger_and_sqrt_costs():
-    from scripts.backtest import backtest_portfolio
+    from scripts.core.backtest import backtest_portfolio
     rng = np.random.default_rng(9)
     idx = pd.bdate_range("2023-01-02", periods=260)
     close = pd.DataFrame({s: 100 * np.exp(np.cumsum(rng.normal(0, 0.01, len(idx))))
@@ -176,7 +176,7 @@ def test_backtest_portfolio_ledger_and_sqrt_costs():
 
 # ---------------------------------------------------------------------- BUG-4
 def test_html_report_escapes_script_breakout():
-    from scripts import html_report as h
+    from scripts.reporting import html_report as h
     out = h.render({"meta": {"title": "x</script><svg onload=alert(1)>",
                              "date": "2026-06-10"}, "sections": []})
     body = out.split("<script", 1)[1]
@@ -235,7 +235,7 @@ def test_zscore_reversion_long_only_holds_to_mean():
 
 
 def test_portfolio_health_summary():
-    from scripts.portfolio import portfolio_health
+    from scripts.risk.portfolio import portfolio_health
     from scripts.strategies.multi_factor import build_panel
     panel = build_panel(_universe(), "close")
     out = portfolio_health(panel)
@@ -246,7 +246,7 @@ def test_portfolio_health_summary():
 
 
 def test_autoresearch_single_and_ensemble():
-    from scripts import autoresearch as ar
+    from scripts.research import autoresearch as ar
     df = _universe(1, 380)["S0"]
     rep = ar.research_single(df, iterations=6, seed=2)
     assert len(rep.trials) == 30  # iterations<30 被抬到 skill 下限 MIN_ITERATIONS
@@ -257,7 +257,7 @@ def test_autoresearch_single_and_ensemble():
 
 
 def test_research_portfolio_smoke():
-    from scripts.autoresearch import research_portfolio
+    from scripts.research.autoresearch import research_portfolio
     rep = research_portfolio(_universe(5, 350), iterations=4, seed=3, use_ml=False)
     assert len(rep.trials) == 4
     assert any(np.isfinite(t.oos_sharpe) for t in rep.trials)
@@ -266,7 +266,7 @@ def test_research_portfolio_smoke():
 def test_html_report_renders_real_schema():
     """Render with the REAL top-level schema keys (alerts/levels/holdings/...) and
     check the payload survives into the embedded JSON with escaping intact."""
-    from scripts import html_report as h
+    from scripts.reporting import html_report as h
     out = h.render({
         "meta": {"title": "复盘", "date": "2026-06-10", "badge": "测试"},
         "alerts": [{"symbol": "NVDA", "headline": "财报临近", "action": "减仓"}],
@@ -327,7 +327,7 @@ def test_zscore_gap_flips_instead_of_netting_zero():
 
 def test_grid_search_drawdown_sorted_best_first():
     """max_drawdown is negative; 'best first' means the SHALLOWEST drawdown on top."""
-    from scripts.optimize import grid_search
+    from scripts.core.optimize import grid_search
     from scripts.strategies import REGISTRY
     df = _uptrend(300)
     tbl = grid_search(REGISTRY["ma_crossover"], df,

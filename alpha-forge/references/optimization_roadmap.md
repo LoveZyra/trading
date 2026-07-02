@@ -16,7 +16,8 @@ This round added the dimensions that single-name analysis misses. New modules:
 
 ### Daily-report usage
 ```python
-from scripts import portfolio as PF, signal_tracker as ST
+from scripts.risk import portfolio as PF
+from scripts.research import signal_tracker as ST
 from scripts.data import options as O
 # 🧩 组合体检 (holdings + watchlist)
 h = PF.portfolio_health(panel_close, weights=positions_w, market_close=index_close)

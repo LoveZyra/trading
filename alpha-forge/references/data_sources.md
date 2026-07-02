@@ -145,11 +145,11 @@ from scripts.data.loader import load
 df = load("trading/data/skh_weekly.json", source="ibkr")
 ```
 
-### 多标的横截面对比(`scripts/compare.py`)
+### 多标的横截面对比(`scripts/research/compare.py`)
 单名分析之外,"A vs B vs C 谁更强/多像/什么姿态"用这个便捷层(复用 indicators/regime/portfolio):
 
 ```python
-from scripts import compare
+from scripts.research import compare
 universe = {"SK海力士": df_skh, "三星": df_ss, "美光": df_mu}   # canonical OHLCV
 cmp = compare.compare_tickers(universe, bars_per_year=52)        # 周线传 52,日线传 252
 cmp["table"]          # 每名:last/rsi/各期收益/年化波动/距高/趋势
@@ -172,7 +172,7 @@ cmp["rs_rank"]        # 按近一年收益的相对强弱排名
 
 ## 实时新闻接入(news connector → 报告 alerts / 🗞 新闻栏)(2026-06 新增)
 
-新闻数据来自只有 Claude 能调的 connector;fetch+筛选是 Claude 的活,`scripts/newsfeed.py` 负责把
+新闻数据来自只有 Claude 能调的 connector;fetch+筛选是 Claude 的活,`scripts/reporting/newsfeed.py` 负责把
 筛好的头条变成报告的 `alerts` 与 🗞 `groups` 块(一步到位,且只透传你筛的文本、逐条带日期+来源,保持诚实)。
 
 **MT Newswires**(数据集模型):`search("news")` 找到数据集(`mt_newswires_global` / `_north_america`)→
@@ -185,7 +185,7 @@ cmp["rs_rank"]        # 按近一年收益的相对强弱排名
 
 **接进报告:**
 ```python
-from scripts import newsfeed as NF
+from scripts.reporting import newsfeed as NF
 items = [ {"date":"2026-06-23","headline":"...","symbol":"宏观","name":"芯片板块","level":"high","detail":"...","action":"..."},
           {"date":"2026-06-22","headline":"Micron signs AI deal with Anthropic"} ]   # 你从 feed 筛出来的
 report["alerts"] = NF.to_alerts(items) + report.get("alerts", [])

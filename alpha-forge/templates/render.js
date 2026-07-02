@@ -170,10 +170,10 @@
       el("div", { class: "stance" }, [
         el("div", { class: "lab" }, "综合立场"),
         el("div", { class: "arrow" }, arrow),
-        el("div", { class: "val" }, v.stance || name),
-        el("div", { class: "lvl" }, name)
+        el("div", { class: "lvl-big" }, name)
       ]),
       el("div", { class: "body-v" }, [
+        v.stance ? el("div", { class: "vhead", html: v.stance }) : null,
         (v.points && v.points.length) ? el("ul", { class: "vpoints" }, v.points.map(function (pt) {
           var t = (typeof pt === "string") ? { text: pt } : (pt || {});
           return el("li", { class: "vpt" }, [
@@ -560,32 +560,35 @@
   function tradesChart(t) {
     var P = t.price || []; var n = P.length; if (n < 2) return null;
     var W = 1000, H = 300, pl = 56, pr = 12, ptp = 10, pb = 20, logy = !!t.logy;
-    var mn = Math.min.apply(null, P), mx = Math.max.apply(null, P), llo = Math.log(mn), lhi = Math.log(mx);
+    var mn = Math.min.apply(null, P), mx = Math.max.apply(null, P);
+    (t.overlays || []).forEach(function (o) { (o.data || []).forEach(function (v) { if (v != null && isFinite(v)) { if (v < mn) mn = v; if (v > mx) mx = v; } }); });
+    var llo = Math.log(mn > 0 ? mn : 1e-9), lhi = Math.log(mx > 0 ? mx : 1);
     function X(i) { return pl + i / (n - 1) * (W - pl - pr); }
     function Y(v) { var f = logy ? (Math.log(v) - llo) / ((lhi - llo) || 1) : (v - mn) / ((mx - mn) || 1); return ptp + (1 - f) * (H - ptp - pb); }
     function fmt(v) { var u = t.unit || ""; return v >= 1e6 ? u + (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? u + (v / 1e3).toFixed(0) + "k" : u + v.toFixed(0); }
+    function pathOf(a) { var d = "", pen = false; for (var i = 0; i < a.length; i++) { var v = a[i]; if (v == null || !isFinite(v)) { pen = false; continue; } d += (pen ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1) + " "; pen = true; } return d; }
     var pr2 = [];
     var labs = logy ? [mx, Math.exp((llo + lhi) / 2), mn] : [mx, (mn + mx) / 2, mn];
     [0, 0.5, 1].forEach(function (g, gi) { var y = ptp + g * (H - ptp - pb);
       pr2.push('<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y + '" y2="' + y + '" stroke="#e7e3d8" stroke-width="1"/>');
       pr2.push('<text x="' + (pl - 6) + '" y="' + (y + 3.5) + '" text-anchor="end" font-size="11" fill="#8a8474">' + fmt(labs[gi]) + '</text>'); });
     (t.hold || []).forEach(function (sp) { var x1 = X(sp[0]), x2 = X(sp[1]); pr2.push('<rect x="' + x1.toFixed(1) + '" y="' + ptp + '" width="' + Math.max(0.5, x2 - x1).toFixed(1) + '" height="' + (H - ptp - pb) + '" fill="#b8923f" opacity="0.16"/>'); });
-    pr2.push('<path d="' + P.map(function (v, i) { return (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1); }).join(" ") + '" fill="none" stroke="#222" stroke-width="1.5"/>');
-    var dlab = (t.dates && (t.buys || []).length + (t.sells || []).length <= 16);   // skip labels if too crowded
-    function dstr(i) { var s = t.dates && t.dates[i] ? String(t.dates[i]) : ""; return s.length >= 10 ? s.slice(5) : s; }  // YYYY-MM-DD -> MM-DD
+    (t.overlays || []).forEach(function (o) { var d = pathOf(o.data || []); if (d) pr2.push('<path d="' + d + '" fill="none" stroke="' + (o.color || "#888") + '" stroke-width="1.2"' + (o.dash ? ' stroke-dasharray="5 4"' : '') + ' opacity="0.95"/>'); });
+    pr2.push('<path d="' + pathOf(P) + '" fill="none" stroke="#222" stroke-width="1.5"/>');
+    var dlab = (t.dates && (t.buys || []).length + (t.sells || []).length <= 36);
+    function dstr(i) { var ss = t.dates && t.dates[i] ? String(t.dates[i]) : ""; return ss.length >= 10 ? ss.slice(5) : ss; }
     (t.buys || []).forEach(function (i) { var x = X(i), y = Y(P[i]); pr2.push('<polygon points="' + x + ',' + (y - 10) + ' ' + (x - 6.5) + ',' + (y + 3) + ' ' + (x + 6.5) + ',' + (y + 3) + '" fill="#c0392b" stroke="#fff" stroke-width="0.8"/>'); if (dlab) pr2.push('<text x="' + x.toFixed(1) + '" y="' + (y + 16) + '" text-anchor="middle" font-size="9.5" fill="#c0392b">' + dstr(i) + '</text>'); });
     (t.sells || []).forEach(function (i) { var x = X(i), y = Y(P[i]); pr2.push('<polygon points="' + x + ',' + (y + 10) + ' ' + (x - 6.5) + ',' + (y - 3) + ' ' + (x + 6.5) + ',' + (y - 3) + '" fill="#147a43" stroke="#fff" stroke-width="0.8"/>'); if (dlab) pr2.push('<text x="' + x.toFixed(1) + '" y="' + (y - 12) + '" text-anchor="middle" font-size="9.5" fill="#147a43">' + dstr(i) + '</text>'); });
     pr2.push('<circle cx="' + X(n - 1) + '" cy="' + Y(P[n - 1]) + '" r="4" fill="#111"/>');
     if (t.date_start) pr2.push('<text x="' + pl + '" y="' + (H - 5) + '" font-size="11" fill="#8a8474">' + t.date_start + '</text>');
     if (t.date_end) pr2.push('<text x="' + (W - pr) + '" y="' + (H - 5) + '" text-anchor="end" font-size="11" fill="#8a8474">' + t.date_end + '</text>');
-    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block">' + pr2.join("") + '</svg>';
-    var legend = el("div", { class: "tc-legend" }, [
-      el("span", { html: '<b style="color:#c0392b">▲</b> 买入' }),
-      el("span", { html: '<b style="color:#147a43">▼</b> 卖出' }),
-      el("span", { html: '<i class="hsw"></i> 持仓期' }),
-      t.now_label ? el("span", { class: "tc-now", html: t.now_label }) : null
-    ]);
-    return el("div", { class: "chart-card" }, [legend, el("div", { raw: svg })]);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block">' + pr2.join("") + '</svg>';
+    var leg = [el("span", { html: '<b style="color:#c0392b">▲</b> 买入' }), el("span", { html: '<b style="color:#147a43">▼</b> 卖出' }), el("span", { html: '<i class="hsw"></i> 持仓期' })];
+    (t.overlays || []).forEach(function (o) { leg.push(el("span", { html: '<i style="display:inline-block;width:15px;height:0;border-top:2px ' + (o.dash ? "dashed" : "solid") + ' ' + (o.color || "#888") + ';vertical-align:middle;margin-right:5px"></i>' + (o.label || "") })); });
+    if (t.now_label) leg.push(el("span", { class: "tc-now", html: t.now_label }));
+    var holder = el("div", null);
+    try { var _pd = new DOMParser().parseFromString(svg, "image/svg+xml"); var _r = _pd.documentElement; if (_r && String(_r.nodeName).toLowerCase() === "svg") holder.appendChild(document.importNode(_r, true)); else holder.innerHTML = svg; } catch (e) { holder.innerHTML = svg; }
+    return el("div", { class: "chart-card" }, [el("div", { class: "tc-legend" }, leg), holder]);
   }
   function researchSection(r) {
     var kids = (r.items || []).map(function (it) {
@@ -647,6 +650,91 @@
     }
     if (r.note) kids.push(el("p", { class: "p-note", style: "margin-top:4px", html: r.note }));
     return el("div", null, kids);
+  }
+  /* ---- B2 稳健性体检:CPCV 分布 + DSR/PBO/SPA 计量表 -------------------- */
+  function pctS(x) { return (x == null || isNaN(x)) ? "—" : (x > 0 ? "+" : "") + (100 * x).toFixed(1) + "%"; }
+  function _svgHolder(svg) {
+    var holder = el("div", null);
+    try { var d = new DOMParser().parseFromString(svg, "image/svg+xml"); var rr = d.documentElement; if (rr && String(rr.nodeName).toLowerCase() === "svg") holder.appendChild(document.importNode(rr, true)); else holder.innerHTML = svg; } catch (e) { holder.innerHTML = svg; }
+    return holder;
+  }
+  function robustnessSection(rb) {
+    var cp = rb.cpcv || {}, spa = rb.spa || {};
+    function fact(k, v, tone, note) {
+      return el("div", null, [el("span", { class: "rk" }, k),
+        el("span", { class: "rv", style: tone ? ("color:var(--" + tone + ")") : "" }, v),
+        note ? el("span", { class: "rb-note" }, note) : null]);
+    }
+    var dsr = rb.deflated_sharpe, pbo = rb.pbo, sp = spa.spa_p, fp = cp.frac_positive;
+    var facts = el("div", { class: "rs-facts" }, [
+      fact("Deflated Sharpe", dsr != null ? String(dsr) : "—", dsr == null ? "" : (dsr >= 0.9 ? "pos" : (dsr < 0.5 ? "neg" : "")), "≥0.95 = 扣掉多重检验后仍显著"),
+      fact("PBO 过拟合概率", pbo != null ? String(pbo) : "—", pbo == null ? "" : (pbo < 0.5 ? "pos" : "neg"), "<0.5 = 选择过程稳健"),
+      fact("SPA p 值", sp != null ? String(sp) : "—", sp == null ? "" : (sp < 0.05 ? "pos" : "neg"), "<0.05 = 冠军非数据窥探"),
+      fact("CPCV 为正占比", fp != null ? Math.round(fp * 100) + "%" : "—", fp == null ? "" : (fp >= 0.7 ? "pos" : (fp < 0.5 ? "neg" : "")), "出样本夏普>0 的路径比例")
+    ]);
+    var strip = null, paths = cp.sharpe_paths || [];
+    if (paths.length) {
+      var W = 700, H = 92, pl = 30, pr = 20;
+      var ext = paths.concat([0]); if (cp.q05 != null) ext.push(cp.q05); if (cp.q95 != null) ext.push(cp.q95);
+      var lo = Math.min.apply(null, ext), hi = Math.max.apply(null, ext);
+      if (hi - lo < 1e-9) hi = lo + 1;
+      var pad = 0.08 * (hi - lo); lo -= pad; hi += pad;
+      function X(v) { return pl + (v - lo) / (hi - lo) * (W - pl - pr); }
+      var s = [];
+      if (cp.q05 != null && cp.q95 != null) s.push('<rect x="' + X(cp.q05).toFixed(1) + '" y="24" width="' + Math.max(1, X(cp.q95) - X(cp.q05)).toFixed(1) + '" height="28" fill="#ece5d6" rx="4"/>');
+      s.push('<line x1="' + X(0).toFixed(1) + '" y1="14" x2="' + X(0).toFixed(1) + '" y2="62" stroke="#b9b2a0" stroke-dasharray="4 3"/>');
+      s.push('<text x="' + X(0).toFixed(1) + '" y="76" text-anchor="middle" font-size="10" fill="#8a8474">0</text>');
+      for (var i = 0; i < paths.length; i++) {
+        var p = paths[i];
+        s.push('<circle cx="' + X(p).toFixed(1) + '" cy="' + (38 + ((i * 7919) % 17) - 8) + '" r="3" fill="' + (p >= 0 ? "#c0392b" : "#147a43") + '" fill-opacity="0.5"/>');
+      }
+      if (cp.median != null) {
+        s.push('<line x1="' + X(cp.median).toFixed(1) + '" y1="18" x2="' + X(cp.median).toFixed(1) + '" y2="58" stroke="#1a1a1a" stroke-width="2"/>');
+        s.push('<text x="' + X(cp.median).toFixed(1) + '" y="12" text-anchor="middle" font-size="11" font-weight="700" fill="#1a1a1a">中位 ' + cp.median + '</text>');
+      }
+      if (cp.q05 != null) s.push('<text x="' + X(cp.q05).toFixed(1) + '" y="88" text-anchor="middle" font-size="10" fill="#8a8474">5%: ' + cp.q05 + '</text>');
+      if (cp.q95 != null) s.push('<text x="' + X(cp.q95).toFixed(1) + '" y="88" text-anchor="middle" font-size="10" fill="#8a8474">95%: ' + cp.q95 + '</text>');
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block">' + s.join("") + '</svg>';
+      strip = el("div", { class: "chart-card" }, [
+        el("div", { class: "rs-sub" }, "CPCV 出样本夏普分布(" + (cp.n_paths || paths.length) + " 条组合净化路径 · 每点一条)"), _svgHolder(svg)]);
+    }
+    var msg = [];
+    if (sp != null) msg.push(sp < 0.05 ? "SPA <b>通过</b>——冠军不是纯搜索幸运" : "SPA <b>未通过</b>——冠军可能只是 " + (rb.n_trials || "多") + " 个配置里最幸运的");
+    if (pbo != null) msg.push("PBO " + pbo + (pbo < 0.5 ? "(选择稳健)" : "(选择在过拟合)"));
+    if (fp != null) msg.push("CPCV 路径 " + Math.round(fp * 100) + "% 为正" + (fp >= 0.7 ? "——edge 不依赖单一幸运窗口" : (fp < 0.5 ? "——半数路径亏损,edge 存疑" : "")));
+    var vd = el("p", { class: "p-note", html: (rb.winner ? "检验对象:<b>" + rb.winner + "</b>(从 " + (rb.n_trials || "?") + " 个配置中选出)· " : "") + msg.join(";") });
+    return el("div", null, [facts, strip, vd].filter(Boolean));
+  }
+  /* ---- B3 下跌切片:基准最惨时段的策略对照 ------------------------------ */
+  function downturnSection(dt) {
+    var rows = dt.rows || [];
+    function cell(v) { return el("td", { style: "text-align:right;font-weight:600;color:" + (v > 0 ? "var(--pos)" : (v < 0 ? "var(--neg)" : "inherit")) }, pctS(v)); }
+    var body = el("tbody", null, rows.map(function (r) {
+      return el("tr", null, [el("td", null, r.label || ""), el("td", { class: "rmp" }, r.period || ""),
+        cell(r.strategy), cell(r.benchmark), cell(r.excess)]);
+    }));
+    var thead = el("thead", null, el("tr", null, [el("th", null, "切片"), el("th", null, "区间"),
+      el("th", { style: "text-align:right" }, "策略"), el("th", { style: "text-align:right" }, "买入持有"),
+      el("th", { style: "text-align:right" }, "超额")]));
+    var note = el("p", { class: "p-note", html: dt.note || "只看全样本会把顺风段的运气当成 edge(StockBench:下跌段全员失效)。这里强制展示基准最惨的几段——看策略在下跌里是保护了资金,还是跟着一起摔。" });
+    return el("div", null, [el("div", { class: "tablewrap" }, el("table", { class: "rmtbl" }, [thead, body])), note]);
+  }
+  /* ---- B4 成本敏感度:0/10/30bps 下同一策略 ----------------------------- */
+  function costCurveSection(cc) {
+    var rows = cc.rows || [], maxAbs = 0;
+    rows.forEach(function (r) { if (r.sharpe != null) maxAbs = Math.max(maxAbs, Math.abs(r.sharpe)); });
+    var body = el("tbody", null, rows.map(function (r) {
+      var w = (maxAbs > 0 && r.sharpe != null) ? Math.round(Math.abs(r.sharpe) / maxAbs * 100) : 0;
+      var bar = el("td", null, el("div", { class: "ccbar" }, el("i", { style: "width:" + w + "%;background:" + (r.sharpe >= 0 ? "var(--pos)" : "var(--neg)") })));
+      return el("tr", null, [el("td", null, (r.bps != null ? r.bps : "?") + " bps"),
+        el("td", { style: "text-align:right" }, pctS(r.total_return)),
+        el("td", { style: "text-align:right;font-weight:600" }, r.sharpe != null ? Number(r.sharpe).toFixed(2) : "—"),
+        el("td", { style: "text-align:right" }, pctS(r.max_drawdown)), bar]);
+    }));
+    var thead = el("thead", null, el("tr", null, [el("th", null, "单边成本"), el("th", { style: "text-align:right" }, "总收益"),
+      el("th", { style: "text-align:right" }, "夏普"), el("th", { style: "text-align:right" }, "最大回撤"), el("th", null, "夏普对比")]));
+    var note = el("p", { class: "p-note", html: cc.note || "同一策略在三档单边成本下重跑:30bps 档夏普仍为正 ⇒ edge 扛得住真实摩擦;一路衰减到负 ⇒ 纸面收益只是把成本假设调低的产物。" });
+    return el("div", null, [el("div", { class: "tablewrap" }, el("table", { class: "rmtbl" }, [thead, body])), note]);
   }
   function render(data, mount) {
     mount.innerHTML = "";
@@ -712,6 +800,14 @@
     if (data.holdings) add("你的持仓", null, proseBlock(data.holdings));
     if (data.methods) add(data.methods.title || "信号多法对照", null, methodsTable(data.methods));
     if (data.research) add(data.research.title || "自动研究详情", null, researchSection(data.research));
+    // build_research 的产物把 robustness/downturn/cost_curve 一并带回 —— 自动上提为独立区块,
+    // 调用方无需手工搬运;显式给了顶层 key 时以顶层为准。
+    if (data.research && !data.robustness && data.research.robustness) data.robustness = data.research.robustness;
+    if (data.research && !data.downturn && data.research.downturn) data.downturn = data.research.downturn;
+    if (data.research && !data.cost_curve && data.research.cost_curve) data.cost_curve = data.research.cost_curve;
+    if (data.robustness) add(data.robustness.title || "🧪 稳健性体检 · 冠军是真 edge 吗", null, robustnessSection(data.robustness));
+    if (data.downturn) add(data.downturn.title || "📉 下跌切片 · 基准最惨时段对照", null, downturnSection(data.downturn));
+    if (data.cost_curve) add(data.cost_curve.title || "💸 成本敏感度 · edge 扛得住摩擦吗", null, costCurveSection(data.cost_curve));
 
     frag.appendChild(body);
 

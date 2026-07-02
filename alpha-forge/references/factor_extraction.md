@@ -32,7 +32,7 @@ causal and actually predictive before it touches a strategy.
 3. **VALIDATE causality — do not skip.** Many described factors are easy to implement
    with an accidental look-ahead. The validator proves the factor uses no future data:
    ```python
-   from scripts import factor_lab as FL
+   from scripts.research import factor_lab as FL
    chk = FL.validate_factor(mom_12_1, df)
    print(chk)          # FactorCheck[OK] causal=True ...  (or PROBLEM with the reason)
    ```

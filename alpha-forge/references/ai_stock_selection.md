@@ -33,7 +33,7 @@
 
 ## 快速开始
 ```python
-from scripts import universe, xsec_eval, xsec_autoresearch, xsec_report
+from scripts.xsec import universe, xsec_eval, xsec_autoresearch, xsec_report
 from scripts.data import loader
 uni = universe.build_universe({"market":"US","source":"list","symbols":[...]})
 data = loader.load_many(uni["symbols"])                 # {sym: OHLCV}
@@ -42,3 +42,37 @@ print(res["scorecard"]); print(xsec_report.scorecard_markdown(res))
 lb  = xsec_autoresearch.search(data, horizon=21)        # 因子×模型 排行榜
 ```
 非投资建议。
+
+---
+
+## 选池方法(数据驱动:市值/流动性/指数成分 基座 + 热门/龙头 软打分)
+
+回答"每个板块的股票怎么选"的可复现方案。实现于 `scripts/xsec/universe.py`
+`build_scored_universe(meta, prices, per_sector, cap_min, adv_min, require_index, sectors_override, weights)`。
+
+**两层结构(软打分 soft-tilt,不做硬淘汰,减少幸存者偏差):**
+
+1. **硬基座门槛(定"能不能进池"):**
+   - 市值 ≥ `cap_min`(默认 2e9,即 20 亿美元)—— 真实 marketCap。
+   - 美元日均成交额 ADV$ ≥ `adv_min`(默认 2e7,即 2000 万美元)—— price×avgVolume。
+   - (可选)指数成分 `require_index`(如 'SP500'/'NDX')—— 真实成分表。
+   门槛只决定候选资格,不参与排序权重之外的打分。
+
+2. **软打分(定"板块内谁靠前",在每个板块内取 TopN=per_sector):**
+   综合分 = wS·size_z + wL·liq_z + wH·hot_z + wR·hi52_z + wD·lead_z(默认权重 0.20/0.15/0.30/0.15/0.20,全部为截面 z 分,报告展示各分量):
+   - **规模 size_z** = z(log10 市值)——大盘更稳、更具代表性。
+   - **流动性 liq_z** = z(log10 ADV$)——可交易性。
+   - **热门度 hot_z** = z(近 63/126 日动量均值)——"最近热门"。缺价时回退 price/avg200−1。
+   - **52周高贴近度 hi52_z** = z(price/52周高)——强势/龙头常态贴近新高。
+   - **龙头度 lead_z** = z(板块内相对强弱=长动量−板块中位)×0.6 + size_z×0.4——"板块龙头=又大又强"。
+
+**数据来源(强制真实):** 行情连接器(FMP 系)`quote/batch-quote`(price、marketCap、volume、yearHigh、priceAvg50/200)、
+`company/batch-market-cap`、`indexes/sp-500`+`nasdaq`(成分)、`company/profile-symbol`(sector/averageVolume)。
+`meta_from_fmp(quotes, profiles, index_members)` 把连接器原始返回解析成 meta。板块用 `sectors_override` 传主题板块
+(如 AI基建/核电电力),覆盖连接器的 GICS 行业。
+
+**反后视镜/point-in-time 提示:** 默认用"当前快照"的市值/成分/52周高,适合"今天选池"。做严格历史回测时,
+应改用 `indexes/historical-sp-500` 与 `company/historical-market-cap` 取调仓日的历史成分/市值,避免用未来信息选池。
+软打分里的动量/52周高本身基于截至打分日的价格,不含未来数据;但"用今天的热门名单去解释过去"仍是幸存者偏差,报告须注明。
+
+**护栏:** 每板块过门槛不足 per_sector 时告警并全取;总数 < 30 时告警(横截面统计意义弱)。

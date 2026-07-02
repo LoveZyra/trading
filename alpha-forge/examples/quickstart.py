@@ -14,7 +14,9 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts import backtest as bt, optimize as opt, report as rpt, metrics as M
+from scripts.core import backtest as bt, optimize as opt, metrics as M
+
+from scripts.reporting import report as rpt
 from scripts.data.base import validate_ohlcv
 from scripts.strategies import MACrossover, ZScoreReversion
 

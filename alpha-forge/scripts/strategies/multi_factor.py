@@ -116,7 +116,8 @@ def multi_factor_signal(data: dict,
                         rebalance: str = "ME", top: float = 0.2,
                         bottom: float = 0.0, long_short: bool = False,
                         fundamentals_panel: pd.DataFrame | None = None,
-                        sentiment_by_symbol: dict | None = None) -> pd.DataFrame:
+                        sentiment_by_symbol: dict | None = None,
+                        weight_smoothing: float = 0.0) -> pd.DataFrame:
     """Full pipeline: compute factors, blend by z-score, rebalance on a schedule.
 
     Price factors are time-varying (recomputed each bar). Fundamental and news
@@ -133,6 +134,12 @@ def multi_factor_signal(data: dict,
     fundamentals_panel: from data.fundamentals.load_panel (index=symbol). Enables
                     'value' / 'quality' / 'growth' factors.
     sentiment_by_symbol: {symbol: mean_sentiment}. Enables the 'sentiment' factor.
+    weight_smoothing: in [0,1). Shrinks each rebalance's new weights toward the previous
+                    rebalance's (w = s*prev + (1-s)*new, renormalized to the same gross).
+                    This is an L1 turnover penalty in disguise: names near the bucket
+                    boundary stop flip-flopping in and out every month, which is where
+                    most of a rank portfolio's costs come from (turnover-regularized
+                    objectives, arXiv:2407.21791). 0 = off; 0.3-0.5 is a sane range.
     Returns a weights panel (index=date, cols=symbols) for backtest_portfolio.
     """
     close = build_panel(data, "close")
@@ -167,8 +174,20 @@ def multi_factor_signal(data: dict,
     # Last actual trading day per period -- calendar resample labels (e.g. a
     # Sunday Jan 31) produced all-NaN rows that dropna() removed, silently skipping
     # ~28% of monthly rebalances. See scripts/rebalance.py.
-    from ..rebalance import rebalance_dates
+    from ..core.rebalance import rebalance_dates
     rebal_dates = rebalance_dates(close.index, rebalance)
     scores_on_dates = blended.reindex(rebal_dates).dropna(how="all")
     weights = rank_and_weight(scores_on_dates, top=top, bottom=bottom, long_short=long_short)
+    if weight_smoothing > 0:
+        s = min(float(weight_smoothing), 0.95)
+        prev = None
+        for d in weights.index:
+            new = weights.loc[d]
+            if prev is not None:
+                mixed = s * prev + (1 - s) * new
+                g_new, g_mix = new.abs().sum(), mixed.abs().sum()
+                if g_mix > 0 and g_new > 0:
+                    mixed = mixed * (g_new / g_mix)   # keep the same gross exposure
+                weights.loc[d] = mixed
+            prev = weights.loc[d]
     return weights.reindex(close.index).ffill().fillna(0.0)

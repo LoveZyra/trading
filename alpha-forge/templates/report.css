@@ -93,22 +93,23 @@ section.block:first-child{border-top:none}
 .sec-head .h-note{font-size:12px;color:var(--muted);font-family:var(--mono);white-space:nowrap}
 
 /* ===== Verdict (结论先行) ================================================= */
-.verdict{display:grid;grid-template-columns:auto 1fr;gap:0;border:1px solid var(--hair-2);
+.verdict{display:grid;grid-template-columns:minmax(146px,178px) 1fr;gap:0;border:1px solid var(--hair-2);
   background:linear-gradient(180deg,#fbfaf7,#fff)}
-.verdict .stance{padding:22px 24px;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:6px;min-width:158px;border-right:1px solid var(--hair-2);text-align:center}
+.verdict .stance{padding:20px 14px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:7px;border-right:1px solid var(--hair-2);text-align:center}
 .verdict .stance .lab{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.verdict .stance .val{font-family:var(--serif);font-size:30px;font-weight:700;line-height:1}
-.verdict .stance .arrow{font-size:20px;line-height:1;letter-spacing:1px}
+.verdict .stance .lvl-big{font-family:var(--serif);font-size:23px;font-weight:700;line-height:1.12}
+.verdict .stance .arrow{font-size:25px;line-height:1;letter-spacing:1px}
 .verdict .stance .lvl{font-size:11px;font-weight:700;letter-spacing:.1em;margin-top:5px;font-family:var(--sans)}
-.verdict.up .val,.verdict.up .arrow,.verdict.up .lvl{color:var(--pos)}
-.verdict.down .val,.verdict.down .arrow,.verdict.down .lvl{color:var(--neg)}
-.verdict.flat .val,.verdict.flat .arrow,.verdict.flat .lvl{color:var(--warn)}
+.verdict.up .lvl-big,.verdict.up .arrow,.verdict.up .lvl{color:var(--pos)}
+.verdict.down .lvl-big,.verdict.down .arrow,.verdict.down .lvl{color:var(--neg)}
+.verdict.flat .lvl-big,.verdict.flat .arrow,.verdict.flat .lvl{color:var(--warn)}
 .verdict .body-v{padding:18px 24px}
+.verdict .vhead{font-family:var(--serif);font-size:17px;font-weight:700;color:var(--ink);line-height:1.42;margin:0 0 11px;padding-bottom:9px;border-bottom:1px solid var(--hair-2)}
 .verdict .action{font-family:var(--serif);font-size:16.5px;font-weight:600;color:var(--ink);
   line-height:1.4;margin:0 0 8px}
 .verdict .summary{font-size:13px;color:var(--ink-soft);line-height:1.62;margin:0}
-.verdict .vpoints{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.verdict .vpoints{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px 28px}
 .verdict .vpt{display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.55;color:var(--ink-soft)}
 .verdict .vpt .vpi{flex:0 0 auto;font-size:14px;line-height:1.4}
 .verdict .vpt .vptx{flex:1;min-width:0}
@@ -419,6 +420,11 @@ table.grid .flagcell{color:var(--flag);font-weight:600}
   .ladder-foot{grid-template-columns:repeat(2,1fr)}
   .senti .s-row{grid-template-columns:1fr;gap:6px}
 }
+
+/* ===== Robustness / downturn / cost-sensitivity (B2/B3/B4) =============== */
+.rb-note{display:block;font-size:10.5px;color:var(--ink-mute,#8a8474);margin-top:2px}
+.ccbar{position:relative;height:10px;background:var(--hair-2,#eee6d8);border-radius:5px;min-width:90px;overflow:hidden}
+.ccbar i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;display:block}
 
 /* ===== Print ============================================================== */
 @media print{

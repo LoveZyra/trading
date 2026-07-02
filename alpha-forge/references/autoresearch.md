@@ -53,7 +53,7 @@ from factor exposures to next-period cross-sectional return, then ranks names by
 predicted return.
 
 ```python
-from scripts import models as Mdl
+from scripts.research import models as Mdl
 
 Mdl.RidgeModel(alpha=1.0)                       # pure numpy, always available
 Mdl.SklearnModel("RandomForestRegressor", n_estimators=200, max_depth=4)  # needs sklearn
@@ -80,7 +80,7 @@ lightgbm`. Without them, RidgeModel still gives you a real linear model.
 ## 3. The bandit drivers (`autoresearch.py`)
 
 ```python
-from scripts import autoresearch as AR
+from scripts.research import autoresearch as AR
 
 # (a) rule-strategy search on one asset
 rep = AR.research_single(df, iterations=30)

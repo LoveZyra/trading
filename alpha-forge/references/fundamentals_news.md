@@ -92,7 +92,7 @@ it stays reproducible.
 ```python
 from scripts.data import fundamentals as F, news, sentiment as S
 from scripts.strategies import multi_factor as mf
-from scripts import backtest as bt
+from scripts.core import backtest as bt
 
 universe = ["AAPL","MSFT","NVDA","AMD","GOOGL"]
 prices = {s: load(s, source="yfinance", period="3y") for s in universe}   # dict of OHLCV

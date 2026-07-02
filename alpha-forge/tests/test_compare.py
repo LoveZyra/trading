@@ -38,7 +38,7 @@ def universe():
 
 
 def test_compare_tickers_shape_and_ranking(universe):
-    from scripts import compare
+    from scripts.research import compare
     cmp = compare.compare_tickers(universe, bars_per_year=252)
     t = cmp["table"]
     assert set(t.index) == {"AAA", "BBB", "CCC"}
@@ -54,7 +54,7 @@ def test_compare_tickers_shape_and_ranking(universe):
 
 def test_compare_tickers_weekly_bars(universe):
     """Must also work on weekly bars via bars_per_year=52 (the memory-stock case)."""
-    from scripts import compare
+    from scripts.research import compare
     wk = {k: v.resample("W-MON").last().dropna() for k, v in universe.items()}
     cmp = compare.compare_tickers(wk, bars_per_year=52)
     assert set(cmp["table"].index) == {"AAA", "BBB", "CCC"}
@@ -64,7 +64,7 @@ def test_compare_tickers_weekly_bars(universe):
 def test_html_report_levels_show_pct_and_support():
     """The levels table must render %-vs-current-price (buy/support/stop/target) and a
     support column — both added 2026-06 after they were missing from a live report."""
-    from scripts import html_report as H
+    from scripts.reporting import html_report as H
     rep = {"meta": {"title": "t", "report_type": "market"},
            "levels": [{"symbol": "X", "price": 1000, "signal": "watch",
                        "buy_low": 850, "buy_high": 920, "support1": 820, "support2": 700,
@@ -78,7 +78,7 @@ def test_html_report_levels_show_pct_and_support():
 
 def test_newsfeed_to_alerts_and_group():
     """news connector rows -> report alerts + 🗞 news group (the 2026-06 news hand-off)."""
-    from scripts import newsfeed as NF
+    from scripts.reporting import newsfeed as NF
     items = [{"date": "2026-06-23", "headline": "Chip rout drags Nasdaq", "symbol": "宏观",
               "name": "芯片板块", "level": "high", "detail": "d", "action": "a"},
              {"date": "2026-06-22", "headline": "Micron signs AI deal with Anthropic"},
@@ -90,7 +90,7 @@ def test_newsfeed_to_alerts_and_group():
     g = NF.to_news_group(items, source="MT Newswires")
     assert g["title"].startswith("🗞") and "Anthropic" in g["body"] and "2026-06-23" in g["body"]
     # and it actually renders inside a report
-    from scripts import html_report as H
+    from scripts.reporting import html_report as H
     html = H.render({"meta": {"title": "t", "report_type": "market"}, "alerts": al, "groups": [g]})
     assert "Anthropic" in html and html.strip().endswith("</html>")
 
@@ -98,7 +98,7 @@ def test_newsfeed_to_alerts_and_group():
 def test_symbol_order_and_single_env_panel():
     """symbol_order must drive a consistent company order (JS sort + embedded data); a
     lone env panel must go full-width (no empty right column) — the 2026-06 layout fixes."""
-    from scripts import html_report as H
+    from scripts.reporting import html_report as H
     rep = {"meta": {"title": "t", "report_type": "market"},
            "symbol_order": ["000660", "005930", "MU"],
            "macro": {"title": "M", "risk_score": -0.3, "vix": 20, "rows": []},
@@ -115,7 +115,7 @@ def test_symbol_order_and_single_env_panel():
 def test_verdict_five_levels():
     """综合立场 must support 5 levels with multi-arrow strength + a net-leaning score and an
     explicit score override (2026-06 upgrade)."""
-    from scripts import html_report as H
+    from scripts.reporting import html_report as H
     html = H.render({"meta": {"title": "t", "report_type": "market"},
                      "verdict": {"stance": "强烈看多 · 满仓", "action": "a"}})
     assert "强烈看多" in html and "强烈看空" in html and "偏空" in html   # level names embedded
@@ -126,7 +126,7 @@ def test_verdict_five_levels():
 
 
 def test_classify_signal_rules():
-    from scripts.levels import classify_signal as cs
+    from scripts.risk.levels import classify_signal as cs
     # clean long: uptrend, not overbought, good R/R, in the buy zone
     assert cs(rsi=50, rr=2.0, trend="bull", in_buy_zone=True) == "long"
     assert cs(rsi=82, rr=2.0, trend="bull", in_buy_zone=True) == "watch"   # overbought
@@ -142,7 +142,7 @@ def test_classify_signal_rules():
 def test_sigbadge_event_sentiment_with_horizon():
     """Signal badge supports AI-judged event sentiment + holding period (利多·短线 等),
     colored by sentiment word; legacy long/watch/short still work."""
-    from scripts import html_report as H
+    from scripts.reporting import html_report as H
     html = H.render({"meta": {"title": "t", "report_type": "market"},
                      "alerts": [{"symbol": "MU", "signal": "利多·中线", "headline": "x"},
                                 {"symbol": "X", "signal": "利空·短线", "headline": "y"},
